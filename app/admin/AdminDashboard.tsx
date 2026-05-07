@@ -1048,15 +1048,15 @@ export default function AdminDashboard() {
       if (deletedTypeFilter && d.type !== deletedTypeFilter) return false;
       if (deletedFromDate) {
         const from = new Date(deletedFromDate);
-        if (d.deletedAt < from) return false;
+        if (new Date(d.deletedAt) < from) return false;
       }
       if (deletedToDate) {
         const to = new Date(deletedToDate);
         to.setHours(23, 59, 59, 999);
-        if (d.deletedAt > to) return false;
+        if (new Date(d.deletedAt) > to) return false;
       }
       return true;
-    }).sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
+    }).sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
 
     return (
       <Box>

@@ -187,7 +187,7 @@ export default function Sidebar({
           {/* VIEW APP */}
           <Tooltip title="Preview from Start" placement="right">
             <IconButton
-              onClick={() => window.open("/", "_blank")}
+              onClick={() => window.open("/?home=1", "_blank")}
               sx={{ width: 50, height: 50, borderRadius: 1, color: MUTED, "&:hover": { bgcolor: HOVER_BG } }}
             >
               <VisibilityIcon sx={{ fontSize: 24 }} />
@@ -338,7 +338,7 @@ export default function Sidebar({
           fullWidth
           startIcon={<VisibilityIcon />}
           variant="outlined"
-          onClick={() => window.open("/", "_blank")}
+          onClick={() => window.open("/?home=1", "_blank")}
           sx={outlinedBtnSx}
         >
           VIEW APP

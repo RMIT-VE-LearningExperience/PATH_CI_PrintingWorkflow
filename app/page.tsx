@@ -90,15 +90,17 @@ function NavIconButton({ onClick, children }: { onClick: () => void; children: R
 function ItemCard({
   item,
   isLastLevel,
+  isPublished,
   isPreview,
   onClick,
 }: {
   item: Item;
   isLastLevel: boolean;
+  isPublished: boolean;
   isPreview: boolean;
   onClick: () => void;
 }) {
-  const isUnpublished = isPreview && !item.published;
+  const isUnpublished = isPreview && !isPublished;
 
   return (
     <Card
@@ -261,6 +263,19 @@ export default function HomePage() {
     return state.steps[parentEntry.itemId] ?? [];
   }, [state, atSteps, parentEntry]);
 
+  // Maps item.id → published status for the current view context.
+  // Top-level uses item.published; deeper levels use relationship.published.
+  const itemPublishedMap = useMemo((): Record<string, boolean> => {
+    if (!state || !currentLevel) return {};
+    if (selectionStack.length === 0) {
+      return Object.fromEntries(
+        (state.items[currentLevel.id] ?? []).map((i) => [i.id, i.published]),
+      );
+    }
+    const rels = (state.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? []) as RelationshipEntry[];
+    return Object.fromEntries(rels.map((r) => [r.childItemId, r.published]));
+  }, [state, currentLevel, selectionStack, parentLevel, parentEntry]);
+
   // ── Data loading ─────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -331,6 +346,12 @@ export default function HomePage() {
             }
             return;
           }
+        }
+
+        // Opened via "View App" from the CMS — show homepage, skip saved progress
+        if (params.get("home")) {
+          window.history.replaceState({}, "", window.location.pathname);
+          return;
         }
 
         try {
@@ -596,6 +617,7 @@ export default function HomePage() {
                   <ItemCard
                     item={item}
                     isLastLevel={isLastSelectionLevel}
+                    isPublished={itemPublishedMap[item.id] ?? false}
                     isPreview={isPreviewMode}
                     onClick={() => handleSelect(item, currentLevel!.id)}
                   />
@@ -679,6 +701,7 @@ export default function HomePage() {
                   <ItemCard
                     item={item}
                     isLastLevel={isLastSelectionLevel}
+                    isPublished={itemPublishedMap[item.id] ?? false}
                     isPreview={isPreviewMode}
                     onClick={() => handleSelect(item, currentLevel.id)}
                   />

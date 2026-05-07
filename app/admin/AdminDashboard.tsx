@@ -15,6 +15,7 @@ import {
   InputAdornment,
   InputLabel,
   Link,
+  ListSubheader,
   Menu,
   MenuItem,
   Paper,
@@ -258,6 +259,10 @@ export default function AdminDashboard() {
   const [deletedFromDate, setDeletedFromDate] = useState("");
   const [deletedToDate, setDeletedToDate] = useState("");
 
+  // Global list filter
+  const [globalListNameFilter, setGlobalListNameFilter] = useState("");
+  const [globalListContextFilter, setGlobalListContextFilter] = useState("");
+
   // Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -463,6 +468,8 @@ export default function AdminDashboard() {
     setGlobalListLevelId(levelId);
     setShowDeleted(false);
     setSortByName(false);
+    setGlobalListNameFilter("");
+    setGlobalListContextFilter("");
   }
 
   function handleShowDeleted() {
@@ -772,21 +779,23 @@ export default function AdminDashboard() {
           </Typography>
         </TableCell>
 
-        <TableCell align="center" sx={{ padding: "4px 16px" }} onClick={(e) => e.stopPropagation()}>
-          <Tooltip title={published ? "Deactivate" : "Activate"}>
-            <Switch
-              checked={published}
-              onChange={() => void handlePublishToggle(item, levelId)}
-              size="small"
-              sx={{
-                "& .MuiSwitch-switchBase.Mui-checked": { color: "#135b22" },
-                "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: "#b3d3b9" },
-                "& .MuiSwitch-switchBase": { color: "#C4321A" },
-                "& .MuiSwitch-track": { bgcolor: "#efc9c2" },
-              }}
-            />
-          </Tooltip>
-        </TableCell>
+        {!opts.isGlobalList && (
+          <TableCell align="center" sx={{ padding: "4px 16px" }} onClick={(e) => e.stopPropagation()}>
+            <Tooltip title={published ? "Deactivate" : "Activate"}>
+              <Switch
+                checked={published}
+                onChange={() => void handlePublishToggle(item, levelId)}
+                size="small"
+                sx={{
+                  "& .MuiSwitch-switchBase.Mui-checked": { color: "#135b22" },
+                  "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { bgcolor: "#b3d3b9" },
+                  "& .MuiSwitch-switchBase": { color: "#C4321A" },
+                  "& .MuiSwitch-track": { bgcolor: "#efc9c2" },
+                }}
+              />
+            </Tooltip>
+          </TableCell>
+        )}
       </TableRow>
     );
   }
@@ -824,13 +833,15 @@ export default function AdminDashboard() {
               )}
               <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px", width: showShareTools ? 196 : 52 }} />
               <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Last Edited</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Status</TableCell>
+              {!opts.isGlobalList && (
+                <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Status</TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4 + parentColCount}>
+                <TableCell colSpan={(opts.isGlobalList ? 3 : 4) + parentColCount}>
                   <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
                     No {level?.name.toLowerCase() ?? "items"} yet
                   </Typography>
@@ -1016,7 +1027,46 @@ export default function AdminDashboard() {
     if (!state || !globalListLevelId) return null;
     const level = activeLevels.find((l) => l.id === globalListLevelId);
     if (!level) return null;
+    const levelIndex = activeLevels.findIndex((l) => l.id === globalListLevelId);
     const label = level.type === "type1" ? `All ${level.name}` : `${level.name} Management`;
+    const showContextFilter = levelIndex >= 1;
+
+    // Collect unique parent/grandparent options from items actually present in the list
+    const parentOptions = Array.from(
+      new Map(
+        globalListItems.flatMap((item) =>
+          (globalListParentInfo[item.id]?.parents ?? []).map((p) => [p.id, p.name] as [string, string])
+        )
+      ).entries()
+    ).sort(([, a], [, b]) => a.localeCompare(b));
+
+    const grandparentOptions = Array.from(
+      new Map(
+        globalListItems.flatMap((item) =>
+          (globalListParentInfo[item.id]?.grandparents ?? []).map((gp) => [gp.id, gp.name] as [string, string])
+        )
+      ).entries()
+    ).sort(([, a], [, b]) => a.localeCompare(b));
+
+    // Decode filter value and apply
+    const filtered = globalListItems.filter((item) => {
+      if (globalListNameFilter && !item.name.toLowerCase().includes(globalListNameFilter.toLowerCase())) return false;
+      if (globalListContextFilter) {
+        const colonIdx = globalListContextFilter.indexOf(":");
+        const role = globalListContextFilter.slice(0, colonIdx);
+        const filterId = globalListContextFilter.slice(colonIdx + 1);
+        const info = globalListParentInfo[item.id];
+        if (role === "gp" && !info?.grandparents.some((gp) => gp.id === filterId)) return false;
+        if (role === "p" && !info?.parents.some((p) => p.id === filterId)) return false;
+      }
+      return true;
+    });
+
+    const contextLabel = levelIndex >= 2
+      ? `${activeLevels[0].singularName} / ${activeLevels[levelIndex - 1].singularName}`
+      : (activeLevels[0]?.singularName ?? "Context");
+
+    const hasFilter = !!(globalListNameFilter || globalListContextFilter);
 
     return (
       <Box>
@@ -1035,7 +1085,55 @@ export default function AdminDashboard() {
             + Add {level.singularName}
           </Button>
         </Box>
-        {renderItemTable(globalListItems, globalListLevelId, { isGlobalList: true })}
+
+        {showContextFilter && (
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }} alignItems="flex-end">
+            <TextField
+              size="small"
+              label="Search by name"
+              value={globalListNameFilter}
+              onChange={(e) => setGlobalListNameFilter(e.target.value)}
+              sx={{ minWidth: 200 }}
+            />
+            <FormControl size="small" sx={{ minWidth: 220 }}>
+              <InputLabel>{contextLabel}</InputLabel>
+              <Select
+                label={contextLabel}
+                value={globalListContextFilter}
+                onChange={(e) => setGlobalListContextFilter(e.target.value)}
+              >
+                <MenuItem value="">All</MenuItem>
+                <Divider />
+                {levelIndex >= 2 && grandparentOptions.length > 0 && (
+                  <ListSubheader>{activeLevels[0].singularName}</ListSubheader>
+                )}
+                {levelIndex >= 2 && grandparentOptions.map(([id, name]) => (
+                  <MenuItem key={id} value={`gp:${id}`}>{name}</MenuItem>
+                ))}
+                {levelIndex >= 2 && grandparentOptions.length > 0 && parentOptions.length > 0 && (
+                  <Divider />
+                )}
+                {levelIndex >= 2 && parentOptions.length > 0 && (
+                  <ListSubheader>{activeLevels[levelIndex - 1].singularName}</ListSubheader>
+                )}
+                {parentOptions.map(([id, name]) => (
+                  <MenuItem key={id} value={`p:${id}`}>{name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {hasFilter && (
+              <Button
+                size="small"
+                onClick={() => { setGlobalListNameFilter(""); setGlobalListContextFilter(""); }}
+                sx={{ textTransform: "none", color: "#3D8078" }}
+              >
+                Clear
+              </Button>
+            )}
+          </Stack>
+        )}
+
+        {renderItemTable(filtered, globalListLevelId, { isGlobalList: true })}
       </Box>
     );
   }
@@ -1167,8 +1265,14 @@ export default function AdminDashboard() {
                             }}
                           />
                         </TableCell>
-                        <TableCell sx={{ py: 1.25, px: 2, color: "text.secondary", fontSize: "0.85rem" }}>
-                          {d.location ?? "—"}
+                        <TableCell sx={{ py: 1.25, px: 2, color: "text.secondary", fontSize: "0.85rem", maxWidth: 200 }}>
+                          {d.location ? (
+                            <Tooltip title={d.location} placement="top-start">
+                              <Box sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {d.location}
+                              </Box>
+                            </Tooltip>
+                          ) : "—"}
                         </TableCell>
                         <TableCell sx={{ py: 1.25, px: 2, color: "text.secondary", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
                           {d.deletedAt

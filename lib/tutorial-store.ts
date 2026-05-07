@@ -66,6 +66,7 @@ export type DeletedItem = {
   type: string;        // levelId or "step"
   parentId?: string;   // for steps: the parent item ID
   name: string;
+  location?: string;   // human-readable origin path, e.g. "Epson SC-P800 → Canson Platine"
   deletedAt: Date;
   deletedBy: string;
   data: Record<string, unknown>;
@@ -129,6 +130,60 @@ function toDate(value: unknown): Date {
     return (value as { toDate: () => Date }).toDate();
   }
   return new Date();
+}
+
+// Resolves a human-readable location path for a deleted item by walking up the
+// hierarchy via relationship links. E.g. for a colour: "Epson SC-P800 → Canson Platine".
+// For a step, pass the last-level item's name as `selfName` to append it.
+async function resolveDeleteLocation(
+  levelId: string,
+  itemId: string,
+  selfName?: string,
+): Promise<string | undefined> {
+  try {
+    const hierSnap = await db.collection("settings").doc("hierarchy").get();
+    if (!hierSnap.exists) return selfName;
+    const allLevels = ((hierSnap.data() as { levels: Level[] }).levels ?? [])
+      .filter((l) => l.enabled)
+      .sort((a, b) => a.order - b.order);
+
+    const levelIndex = allLevels.findIndex((l) => l.id === levelId);
+    if (levelIndex <= 0) return selfName;
+
+    const parts: string[] = [];
+    let currentIds = [itemId];
+
+    for (let i = levelIndex - 1; i >= 0; i--) {
+      const parentLevel = allLevels[i];
+      const parentSnap = await itemsCol(parentLevel.id).get();
+      const foundNames: string[] = [];
+      const foundIds: string[] = [];
+
+      for (const parentDoc of parentSnap.docs) {
+        for (const cId of currentIds) {
+          const childSnap = await childrenCol(parentDoc.id).doc(cId).get();
+          if (childSnap.exists) {
+            const name = (parentDoc.data() as { name?: string }).name ?? parentDoc.id;
+            if (!foundNames.includes(name)) {
+              foundNames.push(name);
+              foundIds.push(parentDoc.id);
+            }
+            break;
+          }
+        }
+      }
+
+      if (foundNames.length === 0) break;
+      parts.unshift(foundNames.join(", "));
+      currentIds = foundIds;
+    }
+
+    const path = parts.length > 0 ? parts.join(" → ") : undefined;
+    if (selfName && path) return `${path} → ${selfName}`;
+    return path ?? selfName;
+  } catch {
+    return selfName;
+  }
 }
 
 // Firestore path helpers
@@ -359,10 +414,13 @@ export async function deleteItem(
   const snap = await itemsCol(levelId).doc(itemId).get();
   if (!snap.exists) return getTutorialState();
 
+  const location = await resolveDeleteLocation(levelId, itemId);
+
   await db.collection("deletedItems").doc().set({
     originalId: itemId,
     type: levelId,
     name: (snap.data() as { name?: string }).name ?? "",
+    ...(location ? { location } : {}),
     deletedAt: FieldValue.serverTimestamp(),
     deletedBy: modifiedBy ?? "system",
     data: snap.data() ?? {},
@@ -499,11 +557,24 @@ export async function deleteStep(
   const snap = await stepsCol(parentItemId).doc(stepId).get();
   if (!snap.exists) return getTutorialState();
 
+  // Resolve the parent item (colour) name then walk up the hierarchy
+  const hierSnap = await db.collection("settings").doc("hierarchy").get();
+  const allLevels = hierSnap.exists
+    ? ((hierSnap.data() as { levels: Level[] }).levels ?? []).filter((l) => l.enabled).sort((a, b) => a.order - b.order)
+    : [];
+  const lastLevel = allLevels.length > 0 ? allLevels[allLevels.length - 1] : null;
+  const parentDoc = lastLevel ? await itemsCol(lastLevel.id).doc(parentItemId).get() : null;
+  const parentName = (parentDoc?.data() as { name?: string } | undefined)?.name ?? parentItemId;
+  const location = lastLevel
+    ? await resolveDeleteLocation(lastLevel.id, parentItemId, parentName)
+    : parentName;
+
   await db.collection("deletedItems").doc().set({
     originalId: stepId,
     type: "step",
     parentId: parentItemId,
     name: (snap.data() as { title?: string }).title ?? "",
+    ...(location ? { location } : {}),
     deletedAt: FieldValue.serverTimestamp(),
     deletedBy: modifiedBy ?? "system",
     data: snap.data() ?? {},

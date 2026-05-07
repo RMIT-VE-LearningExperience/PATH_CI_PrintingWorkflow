@@ -6,15 +6,19 @@ import {
   Box,
   Breadcrumbs,
   Button,
+  Chip,
   CircularProgress,
   Collapse,
   Divider,
+  FormControl,
   IconButton,
   InputAdornment,
+  InputLabel,
   Link,
   Menu,
   MenuItem,
   Paper,
+  Select,
   Stack,
   Switch,
   Table,
@@ -247,6 +251,12 @@ export default function AdminDashboard() {
   const [sortByName, setSortByName] = useState(false);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
 
+  // Deleted items filter
+  const [deletedNameFilter, setDeletedNameFilter] = useState("");
+  const [deletedTypeFilter, setDeletedTypeFilter] = useState("");
+  const [deletedFromDate, setDeletedFromDate] = useState("");
+  const [deletedToDate, setDeletedToDate] = useState("");
+
   // Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -304,6 +314,51 @@ export default function AdminDashboard() {
     const items = state.items[globalListLevelId] ?? [];
     return sortByName ? [...items].sort((a, b) => a.name.localeCompare(b.name)) : items;
   }, [state, globalListLevelId, sortByName]);
+
+  // For each item in the global list, resolve its parent/grandparent context.
+  // parents  = immediate parents (e.g. printers for papers, papers for colours)
+  // grandparents = two levels up (e.g. printers for colours)
+  type ParentEntry = { parents: { id: string; name: string }[]; grandparents: { id: string; name: string }[] };
+  const globalListParentInfo = useMemo((): Record<string, ParentEntry> => {
+    if (!state || !globalListLevelId) return {};
+    const levelIndex = activeLevels.findIndex((l) => l.id === globalListLevelId);
+    if (levelIndex <= 0) return {};
+
+    const result: Record<string, ParentEntry> = {};
+    const parentLevel = activeLevels[levelIndex - 1];
+    const grandparentLevel = levelIndex > 1 ? activeLevels[levelIndex - 2] : null;
+
+    // Build parent entries
+    const parentRels = state.relationships[parentLevel.id] ?? {};
+    Object.entries(parentRels).forEach(([parentItemId, children]) => {
+      const parentItem = (state.items[parentLevel.id] ?? []).find((i) => i.id === parentItemId);
+      if (!parentItem) return;
+      children.forEach((rel) => {
+        if (!result[rel.childItemId]) result[rel.childItemId] = { parents: [], grandparents: [] };
+        if (!result[rel.childItemId].parents.some((p) => p.id === parentItemId))
+          result[rel.childItemId].parents.push({ id: parentItemId, name: parentItem.name });
+      });
+    });
+
+    // Build grandparent entries
+    if (grandparentLevel) {
+      const gpRels = state.relationships[grandparentLevel.id] ?? {};
+      Object.entries(gpRels).forEach(([gpItemId, gpChildren]) => {
+        const gpItem = (state.items[grandparentLevel.id] ?? []).find((i) => i.id === gpItemId);
+        if (!gpItem) return;
+        gpChildren.forEach((gpRel) => {
+          Object.values(result).forEach((entry) => {
+            if (entry.parents.some((p) => p.id === gpRel.childItemId) &&
+                !entry.grandparents.some((gp) => gp.id === gpItemId)) {
+              entry.grandparents.push({ id: gpItemId, name: gpItem.name });
+            }
+          });
+        });
+      });
+    }
+
+    return result;
+  }, [state, globalListLevelId, activeLevels]);
 
   // ── Auth token ────────────────────────────────────────────────────────
 
@@ -610,6 +665,8 @@ export default function AdminDashboard() {
     const itemUrl = itemUrlObj.toString();
     const showShareTools = !opts.isGlobalList && (features.copyLink || features.qrCode || features.canvasEmbed);
 
+    const parentInfo = opts.isGlobalList ? (globalListParentInfo[item.id] ?? { parents: [], grandparents: [] }) : null;
+
     return (
       <TableRow
         key={item.id}
@@ -629,6 +686,39 @@ export default function AdminDashboard() {
             <Typography variant="body2">{item.name}</Typography>
           </Stack>
         </TableCell>
+
+        {/* Parent context columns — only in global list */}
+        {parentInfo && levelIndex === 2 && (
+          <TableCell sx={{ padding: "12px 16px" }}>
+            {parentInfo.parents.length > 0
+              ? parentInfo.parents.map((p) => (
+                  <Typography key={p.id} variant="body2" color="text.secondary">{p.name}</Typography>
+                ))
+              : <Typography variant="body2" color="text.disabled">—</Typography>}
+          </TableCell>
+        )}
+        {parentInfo && levelIndex >= 1 && (
+          <TableCell sx={{ padding: "12px 16px" }}>
+            {(levelIndex === 1 ? parentInfo.parents : parentInfo.grandparents).length > 0
+              ? (levelIndex === 1 ? parentInfo.parents : parentInfo.grandparents).map((p) => (
+                  <Link
+                    key={p.id}
+                    component="button"
+                    variant="body2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNavStack([{ levelId: activeLevels[0].id, itemId: p.id, itemName: p.name }]);
+                      setGlobalListLevelId(null);
+                      setShowDeleted(false);
+                    }}
+                    sx={{ display: "block", textAlign: "left", color: "#3D8078" }}
+                  >
+                    {p.name}
+                  </Link>
+                ))
+              : <Typography variant="body2" color="text.disabled">—</Typography>}
+          </TableCell>
+        )}
 
         <TableCell align="center" sx={{ padding: "4px 8px", width: showShareTools ? 196 : 52 }}>
           <Stack direction="row" alignItems="center" justifyContent="center">
@@ -696,6 +786,11 @@ export default function AdminDashboard() {
     const level = activeLevels.find((l) => l.id === levelId);
     const features = state!.appSettings.features;
     const showShareTools = !opts.isGlobalList && (features.copyLink || features.qrCode || features.canvasEmbed);
+    const levelIndex = activeLevels.findIndex((l) => l.id === levelId);
+    const showParentCols = opts.isGlobalList && levelIndex >= 1;
+    // For level 2 (papers): 1 parent col (Printer = "Active In")
+    // For level 3 (colours): 2 parent cols (Paper, then Printer)
+    const parentColCount = showParentCols ? (levelIndex === 2 ? 2 : 1) : 0;
 
     return (
       <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 1, overflow: "hidden", mb: 3 }}>
@@ -708,6 +803,16 @@ export default function AdminDashboard() {
               >
                 {level?.singularName ?? "Name"} {sortByName ? "↑" : "↓"}
               </TableCell>
+              {showParentCols && levelIndex === 2 && (
+                <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>
+                  {activeLevels[levelIndex - 1]?.singularName ?? "Paper"}
+                </TableCell>
+              )}
+              {showParentCols && (
+                <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>
+                  Active In
+                </TableCell>
+              )}
               <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px", width: showShareTools ? 196 : 52 }} />
               <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Last Edited</TableCell>
               <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Status</TableCell>
@@ -716,7 +821,7 @@ export default function AdminDashboard() {
           <TableBody>
             {items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={4 + parentColCount}>
                   <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
                     No {level?.name.toLowerCase() ?? "items"} yet
                   </Typography>
@@ -927,7 +1032,31 @@ export default function AdminDashboard() {
 
   function renderDeletedView() {
     if (!state) return null;
-    const items = state.deletedItems;
+
+    // Build unique type options from current deleted items
+    const allDeleted = state.deletedItems;
+    const typeOptions = Array.from(new Set(allDeleted.map((d) =>
+      d.type === "step" ? "step" : d.type,
+    ))).map((t) => ({
+      value: t,
+      label: t === "step" ? "Step" : (activeLevels.find((l) => l.id === t)?.singularName ?? t),
+    }));
+
+    // Apply filters
+    const filtered = allDeleted.filter((d) => {
+      if (deletedNameFilter && !d.name.toLowerCase().includes(deletedNameFilter.toLowerCase())) return false;
+      if (deletedTypeFilter && d.type !== deletedTypeFilter) return false;
+      if (deletedFromDate) {
+        const from = new Date(deletedFromDate);
+        if (d.deletedAt < from) return false;
+      }
+      if (deletedToDate) {
+        const to = new Date(deletedToDate);
+        to.setHours(23, 59, 59, 999);
+        if (d.deletedAt > to) return false;
+      }
+      return true;
+    }).sort((a, b) => b.deletedAt.getTime() - a.deletedAt.getTime());
 
     return (
       <Box>
@@ -935,46 +1064,138 @@ export default function AdminDashboard() {
           <Typography variant="h5" sx={{ color: "#45443F", fontWeight: 700, mb: 0.5 }}>Deleted Items</Typography>
           <Typography variant="body2" color="text.secondary">Restore or permanently delete removed items</Typography>
         </Box>
-        {items.length === 0 ? (
+
+        {/* Filter bar */}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mb: 2 }} alignItems="flex-end">
+          <TextField
+            size="small"
+            label="Search by name"
+            value={deletedNameFilter}
+            onChange={(e) => setDeletedNameFilter(e.target.value)}
+            sx={{ minWidth: 200 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Type</InputLabel>
+            <Select
+              label="Type"
+              value={deletedTypeFilter}
+              onChange={(e) => setDeletedTypeFilter(e.target.value)}
+            >
+              <MenuItem value="">All types</MenuItem>
+              {typeOptions.map((o) => (
+                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            size="small"
+            label="From date"
+            type="date"
+            value={deletedFromDate}
+            onChange={(e) => setDeletedFromDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 160 }}
+          />
+          <TextField
+            size="small"
+            label="To date"
+            type="date"
+            value={deletedToDate}
+            onChange={(e) => setDeletedToDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 160 }}
+          />
+          {(deletedNameFilter || deletedTypeFilter || deletedFromDate || deletedToDate) && (
+            <Button
+              size="small"
+              onClick={() => { setDeletedNameFilter(""); setDeletedTypeFilter(""); setDeletedFromDate(""); setDeletedToDate(""); }}
+              sx={{ textTransform: "none", color: "#3D8078" }}
+            >
+              Clear
+            </Button>
+          )}
+        </Stack>
+
+        {allDeleted.length === 0 ? (
           <Typography variant="body2" color="text.secondary">No deleted items.</Typography>
         ) : (
-          <Stack spacing={2}>
-            {items.map((d) => (
-              <Paper key={d.id} elevation={1} sx={{ p: 2, border: "1px solid #E5E1D7" }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between">
-                  <Box>
-                    <Typography variant="body1" fontWeight={600}>{d.name}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {d.type === "step"
-                        ? "Step"
-                        : (activeLevels.find((l) => l.id === d.type)?.singularName ?? d.type)}
-                      {d.deletedAt && ` · ${new Date(d.deletedAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}`}
-                      {d.deletedBy && ` · By ${d.deletedBy}`}
-                    </Typography>
-                  </Box>
-                  <Stack direction="row" spacing={1}>
-                    <Button
-                      variant="outlined" size="small"
-                      startIcon={<RestoreIcon fontSize="small" />}
-                      onClick={() => void dispatch("restoreDeletedItem", { deletedItemId: d.id })}
-                      disabled={actionLoading}
-                      sx={{ textTransform: "none", color: "#3D8078", borderColor: "#3D8078", "&:hover": { bgcolor: "rgba(61,128,120,0.1)" } }}
-                    >
-                      Restore
-                    </Button>
-                    <Button
-                      variant="contained" size="small" color="error"
-                      startIcon={<DeleteIcon fontSize="small" />}
-                      onClick={() => setDeleteTarget({ kind: "deletedBinItem", deletedItemId: d.id, name: d.name })}
-                      sx={{ textTransform: "none" }}
-                    >
-                      Delete permanently
-                    </Button>
-                  </Stack>
-                </Stack>
-              </Paper>
-            ))}
-          </Stack>
+          <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 1, overflow: "hidden" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: "#FDF9F1", borderBottom: "2px solid #E5E1D7" }}>
+                  <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Name</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Type</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Location</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Deleted</TableCell>
+                  <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>By</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.9rem", py: 1.5, px: 2 }}>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} sx={{ textAlign: "center", py: 3, color: "text.secondary" }}>
+                      No items match the current filters.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((d) => {
+                    const typeLabel = d.type === "step"
+                      ? "Step"
+                      : (activeLevels.find((l) => l.id === d.type)?.singularName ?? d.type);
+                    return (
+                      <TableRow key={d.id} sx={{ borderBottom: "1px solid #E5E1D7", "&:last-child td": { borderBottom: 0 } }}>
+                        <TableCell sx={{ py: 1.25, px: 2, fontWeight: 500, color: "#45443F" }}>{d.name}</TableCell>
+                        <TableCell sx={{ py: 1.25, px: 2 }}>
+                          <Chip
+                            label={typeLabel}
+                            size="small"
+                            sx={{
+                              bgcolor: d.type === "step" ? "#E8F4F2" : "#F5F0E8",
+                              color: d.type === "step" ? "#3D8078" : "#45443F",
+                              fontWeight: 600, fontSize: "0.75rem",
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ py: 1.25, px: 2, color: "text.secondary", fontSize: "0.85rem" }}>
+                          {d.location ?? "—"}
+                        </TableCell>
+                        <TableCell sx={{ py: 1.25, px: 2, color: "text.secondary", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                          {d.deletedAt
+                            ? new Date(d.deletedAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })
+                            : "—"}
+                        </TableCell>
+                        <TableCell sx={{ py: 1.25, px: 2, color: "text.secondary", fontSize: "0.85rem" }}>
+                          {d.deletedBy ?? "—"}
+                        </TableCell>
+                        <TableCell align="right" sx={{ py: 1, px: 2 }}>
+                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                            <Button
+                              variant="outlined" size="small"
+                              startIcon={<RestoreIcon fontSize="small" />}
+                              onClick={() => void dispatch("restoreDeletedItem", { deletedItemId: d.id })}
+                              disabled={actionLoading}
+                              sx={{ textTransform: "none", color: "#3D8078", borderColor: "#3D8078", "&:hover": { bgcolor: "rgba(61,128,120,0.1)" }, whiteSpace: "nowrap" }}
+                            >
+                              Restore
+                            </Button>
+                            <Button
+                              variant="contained" size="small" color="error"
+                              startIcon={<DeleteIcon fontSize="small" />}
+                              onClick={() => setDeleteTarget({ kind: "deletedBinItem", deletedItemId: d.id, name: d.name })}
+                              sx={{ textTransform: "none", whiteSpace: "nowrap" }}
+                            >
+                              Delete permanently
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
     );

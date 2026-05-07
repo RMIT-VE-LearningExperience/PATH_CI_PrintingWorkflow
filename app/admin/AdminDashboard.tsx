@@ -1179,14 +1179,15 @@ export default function AdminDashboard() {
                             >
                               Restore
                             </Button>
-                            <Button
-                              variant="contained" size="small" color="error"
-                              startIcon={<DeleteIcon fontSize="small" />}
-                              onClick={() => setDeleteTarget({ kind: "deletedBinItem", deletedItemId: d.id, name: d.name })}
-                              sx={{ textTransform: "none", whiteSpace: "nowrap" }}
-                            >
-                              Delete permanently
-                            </Button>
+                            <Tooltip title="Delete permanently">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => setDeleteTarget({ kind: "deletedBinItem", deletedItemId: d.id, name: d.name })}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
                           </Stack>
                         </TableCell>
                       </TableRow>

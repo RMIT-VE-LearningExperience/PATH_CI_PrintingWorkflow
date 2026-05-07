@@ -80,7 +80,7 @@ type NavEntry = { levelId: string; itemId: string; itemName: string };
 
 type DeleteTarget =
   | { kind: "item"; levelId: string; itemId: string; name: string }
-  | { kind: "unlink"; parentLevelId: string; parentItemId: string; childItemId: string; childLevelId: string; name: string }
+  | { kind: "unlink"; parentLevelId: string; parentItemId: string; parentKey: string; childItemId: string; childLevelId: string; name: string }
   | { kind: "step"; parentItemId: string; stepId: string; name: string }
   | { kind: "deletedBinItem"; deletedItemId: string; name: string };
 
@@ -227,6 +227,7 @@ export default function AdminDashboard() {
     levelId: string;
     parentLevelId: string;
     parentItemId: string;
+    parentKey: string;
   } | null>(null);
   const [stepDialog, setStepDialog] = useState<{
     mode: "add" | "edit";
@@ -290,6 +291,15 @@ export default function AdminDashboard() {
   const parentLevel: Level | undefined =
     navStack.length > 0 ? activeLevels[navStack.length - 1] : undefined;
 
+  // Composite relationship key for the current parent context.
+  // At depth 2+ (e.g. colours under a printer+paper), includes the grandparent
+  // ID so each printer-paper pair has its own independent child collection.
+  const parentKey = useMemo((): string => {
+    if (!parentEntry) return "";
+    if (navStack.length < 2) return parentEntry.itemId;
+    return `${navStack[navStack.length - 2].itemId}:${parentEntry.itemId}`;
+  }, [navStack, parentEntry]);
+
   const currentItems = useMemo((): Item[] => {
     if (!state || !currentLevel) return [];
     const all = state.items[currentLevel.id] ?? [];
@@ -297,12 +307,12 @@ export default function AdminDashboard() {
       navStack.length === 0
         ? all
         : (() => {
-            const rels = state.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? [];
+            const rels = state.relationships[parentLevel!.id]?.[parentKey] ?? [];
             const linked = new Set(rels.map((r) => r.childItemId));
             return all.filter((i) => linked.has(i.id));
           })();
     return sortByName ? [...source].sort((a, b) => a.name.localeCompare(b.name)) : source;
-  }, [state, currentLevel, navStack, parentLevel, parentEntry, sortByName]);
+  }, [state, currentLevel, navStack, parentLevel, parentKey, sortByName]);
 
   const currentSteps = useMemo((): Step[] => {
     if (!state || !atSteps || !parentEntry) return [];
@@ -318,6 +328,8 @@ export default function AdminDashboard() {
   // For each item in the global list, resolve its parent/grandparent context.
   // parents  = immediate parents (e.g. printers for papers, papers for colours)
   // grandparents = two levels up (e.g. printers for colours)
+  // Composite keys (e.g. "printerId:paperId") are decoded by splitting on ":"
+  // so the true parent/grandparent IDs can be looked up by name.
   type ParentEntry = { parents: { id: string; name: string }[]; grandparents: { id: string; name: string }[] };
   const globalListParentInfo = useMemo((): Record<string, ParentEntry> => {
     if (!state || !globalListLevelId) return {};
@@ -325,37 +337,34 @@ export default function AdminDashboard() {
     if (levelIndex <= 0) return {};
 
     const result: Record<string, ParentEntry> = {};
-    const parentLevel = activeLevels[levelIndex - 1];
-    const grandparentLevel = levelIndex > 1 ? activeLevels[levelIndex - 2] : null;
+    const parentLvl = activeLevels[levelIndex - 1];
+    const grandparentLvl = levelIndex > 1 ? activeLevels[levelIndex - 2] : null;
 
-    // Build parent entries
-    const parentRels = state.relationships[parentLevel.id] ?? {};
-    Object.entries(parentRels).forEach(([parentItemId, children]) => {
-      const parentItem = (state.items[parentLevel.id] ?? []).find((i) => i.id === parentItemId);
+    // Keys in relationships[parentLvl.id] may be composite ("grandparentId:parentId").
+    // Extract the actual parent item ID from the last segment.
+    const parentRels = state.relationships[parentLvl.id] ?? {};
+    Object.entries(parentRels).forEach(([compositeKey, children]) => {
+      const segments = compositeKey.split(":");
+      const actualParentId = segments[segments.length - 1];
+      const grandparentId = segments.length >= 2 ? segments[segments.length - 2] : null;
+
+      const parentItem = (state.items[parentLvl.id] ?? []).find((i) => i.id === actualParentId);
       if (!parentItem) return;
+
       children.forEach((rel) => {
         if (!result[rel.childItemId]) result[rel.childItemId] = { parents: [], grandparents: [] };
-        if (!result[rel.childItemId].parents.some((p) => p.id === parentItemId))
-          result[rel.childItemId].parents.push({ id: parentItemId, name: parentItem.name });
+        if (!result[rel.childItemId].parents.some((p) => p.id === actualParentId))
+          result[rel.childItemId].parents.push({ id: actualParentId, name: parentItem.name });
+
+        // Derive grandparent directly from the composite key (accurate even when
+        // multiple grandparents share the same paper).
+        if (grandparentId && grandparentLvl) {
+          const gpItem = (state.items[grandparentLvl.id] ?? []).find((i) => i.id === grandparentId);
+          if (gpItem && !result[rel.childItemId].grandparents.some((gp) => gp.id === grandparentId))
+            result[rel.childItemId].grandparents.push({ id: grandparentId, name: gpItem.name });
+        }
       });
     });
-
-    // Build grandparent entries
-    if (grandparentLevel) {
-      const gpRels = state.relationships[grandparentLevel.id] ?? {};
-      Object.entries(gpRels).forEach(([gpItemId, gpChildren]) => {
-        const gpItem = (state.items[grandparentLevel.id] ?? []).find((i) => i.id === gpItemId);
-        if (!gpItem) return;
-        gpChildren.forEach((gpRel) => {
-          Object.values(result).forEach((entry) => {
-            if (entry.parents.some((p) => p.id === gpRel.childItemId) &&
-                !entry.grandparents.some((gp) => gp.id === gpItemId)) {
-              entry.grandparents.push({ id: gpItemId, name: gpItem.name });
-            }
-          });
-        });
-      });
-    }
 
     return result;
   }, [state, globalListLevelId, activeLevels]);
@@ -467,11 +476,11 @@ export default function AdminDashboard() {
     if (navStack.length === 0 || globalListLevelId) {
       await dispatch("updateItem", { levelId, itemId: item.id, published: !item.published });
     } else {
-      const rels = state!.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? [];
+      const rels = state!.relationships[parentLevel!.id]?.[parentKey] ?? [];
       const rel = rels.find((r) => r.childItemId === item.id);
       await dispatch("updateRelationship", {
         parentLevelId: parentLevel!.id,
-        parentItemId: parentEntry!.itemId,
+        parentItemId: parentKey,
         childItemId: item.id,
         published: !rel?.published,
       });
@@ -480,7 +489,7 @@ export default function AdminDashboard() {
 
   function getItemPublished(item: Item): boolean {
     if (navStack.length === 0 || globalListLevelId) return item.published;
-    const rels = state?.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? [];
+    const rels = state?.relationships[parentLevel!.id]?.[parentKey] ?? [];
     return rels.find((r) => r.childItemId === item.id)?.published ?? false;
   }
 
@@ -507,7 +516,7 @@ export default function AdminDashboard() {
         const newItem = (ns.items[levelId] ?? []).find((i) => !prevIds.has(i.id));
         if (newItem) {
           await dispatch("linkItem", {
-            parentLevelId: parentLevel.id, parentItemId: parentEntry.itemId,
+            parentLevelId: parentLevel.id, parentItemId: parentKey,
             childLevelId: levelId, childItemId: newItem.id,
           });
         }
@@ -520,7 +529,7 @@ export default function AdminDashboard() {
   async function handleLink(childItemId: string) {
     if (!searchDialog) return;
     const ns = await dispatch("linkItem", {
-      parentLevelId: searchDialog.parentLevelId, parentItemId: searchDialog.parentItemId,
+      parentLevelId: searchDialog.parentLevelId, parentItemId: searchDialog.parentKey,
       childLevelId: searchDialog.levelId, childItemId,
     });
     if (ns) { setSearchDialog(null); showAlert("Linked"); }
@@ -537,7 +546,7 @@ export default function AdminDashboard() {
     const newItem = (ns.items[searchDialog.levelId] ?? []).find((i) => !prevIds.has(i.id));
     if (newItem) {
       const linked = await dispatch("linkItem", {
-        parentLevelId: searchDialog.parentLevelId, parentItemId: searchDialog.parentItemId,
+        parentLevelId: searchDialog.parentLevelId, parentItemId: searchDialog.parentKey,
         childLevelId: searchDialog.levelId, childItemId: newItem.id,
       });
       if (linked) { setSearchDialog(null); showAlert("Created and linked"); }
@@ -584,7 +593,7 @@ export default function AdminDashboard() {
     } else if (deleteTarget.kind === "unlink") {
       ok = !!(await dispatch("unlinkItem", {
         parentLevelId: deleteTarget.parentLevelId,
-        parentItemId: deleteTarget.parentItemId,
+        parentItemId: deleteTarget.parentKey,
         childItemId: deleteTarget.childItemId,
       }));
     } else if (deleteTarget.kind === "step") {
@@ -848,6 +857,7 @@ export default function AdminDashboard() {
           levelId: currentLevel!.id,
           parentLevelId: parentLevel!.id,
           parentItemId: parentEntry!.itemId,
+          parentKey: parentKey,
         });
       } else {
         setItemDialog({ mode: "add", levelId: currentLevel!.id });
@@ -1223,7 +1233,7 @@ export default function AdminDashboard() {
       handleClose();
       if (type === "item" && item && extra) {
         if (navStack.length > 0 && !globalListLevelId && parentLevel && parentEntry) {
-          setDeleteTarget({ kind: "unlink", parentLevelId: parentLevel.id, parentItemId: parentEntry.itemId, childItemId: item.id, childLevelId: extra, name: item.name });
+          setDeleteTarget({ kind: "unlink", parentLevelId: parentLevel.id, parentItemId: parentEntry.itemId, parentKey: parentKey, childItemId: item.id, childLevelId: extra, name: item.name });
         } else {
           setDeleteTarget({ kind: "item", levelId: extra, itemId: item.id, name: item.name });
         }
@@ -1410,7 +1420,7 @@ export default function AdminDashboard() {
           allItems={state?.items[searchDialog.levelId] ?? []}
           linkedItemIds={
             new Set(
-              (state?.relationships[searchDialog.parentLevelId]?.[searchDialog.parentItemId] ?? []).map(
+              (state?.relationships[searchDialog.parentLevelId]?.[searchDialog.parentKey] ?? []).map(
                 (r: RelationshipEntry) => r.childItemId,
               ),
             )

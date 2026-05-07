@@ -132,9 +132,9 @@ function toDate(value: unknown): Date {
   return new Date();
 }
 
-// Resolves a human-readable location path for a deleted item by walking up the
-// hierarchy via relationship links. E.g. for a colour: "Epson SC-P800 → Canson Platine".
-// For a step, pass the last-level item's name as `selfName` to append it.
+// Resolves a human-readable location path for a deleted item by walking down
+// from level 0 and building composite ancestor paths (e.g. "printerId:paperId").
+// Works at any hierarchy depth. For a step, pass the last-level item name as `selfName`.
 async function resolveDeleteLocation(
   levelId: string,
   itemId: string,
@@ -150,37 +150,49 @@ async function resolveDeleteLocation(
     const levelIndex = allLevels.findIndex((l) => l.id === levelId);
     if (levelIndex <= 0) return selfName;
 
-    const parts: string[] = [];
-    let currentIds = [itemId];
+    type AncPath = { compositeKey: string; names: string[] };
 
-    for (let i = levelIndex - 1; i >= 0; i--) {
-      const parentLevel = allLevels[i];
-      const parentSnap = await itemsCol(parentLevel.id).get();
-      const foundNames: string[] = [];
-      const foundIds: string[] = [];
+    // Seed paths from all level-0 items
+    const level0Snap = await itemsCol(allLevels[0].id).get();
+    let paths: AncPath[] = level0Snap.docs.map((doc) => ({
+      compositeKey: doc.id,
+      names: [(doc.data() as { name?: string }).name ?? doc.id],
+    }));
 
-      for (const parentDoc of parentSnap.docs) {
-        for (const cId of currentIds) {
-          const childSnap = await childrenCol(parentDoc.id).doc(cId).get();
-          if (childSnap.exists) {
-            const name = (parentDoc.data() as { name?: string }).name ?? parentDoc.id;
-            if (!foundNames.includes(name)) {
-              foundNames.push(name);
-              foundIds.push(parentDoc.id);
-            }
-            break;
+    // Expand each path one level at a time down to levelIndex-1
+    for (let i = 0; i < levelIndex - 1; i++) {
+      const childLevelSnap = await itemsCol(allLevels[i + 1].id).get();
+      const childNames = new Map(
+        childLevelSnap.docs.map((d) => [d.id, (d.data() as { name?: string }).name ?? d.id]),
+      );
+      const nextPaths: AncPath[] = [];
+      await Promise.all(
+        paths.map(async (path) => {
+          const snap = await childrenCol(path.compositeKey).get();
+          for (const doc of snap.docs) {
+            nextPaths.push({
+              compositeKey: `${path.compositeKey}:${doc.id}`,
+              names: [...path.names, childNames.get(doc.id) ?? doc.id],
+            });
           }
-        }
-      }
-
-      if (foundNames.length === 0) break;
-      parts.unshift(foundNames.join(", "));
-      currentIds = foundIds;
+        }),
+      );
+      paths = nextPaths;
     }
 
-    const path = parts.length > 0 ? parts.join(" → ") : undefined;
-    if (selfName && path) return `${path} → ${selfName}`;
-    return path ?? selfName;
+    // Find which paths directly contain our item
+    const foundNames: string[][] = [];
+    await Promise.all(
+      paths.map(async (path) => {
+        const snap = await childrenCol(path.compositeKey).doc(itemId).get();
+        if (snap.exists) foundNames.push(path.names);
+      }),
+    );
+
+    if (foundNames.length === 0) return selfName;
+    const locationStr = foundNames.map((names) => names.join(" → ")).join(", ");
+    if (selfName) return `${locationStr} → ${selfName}`;
+    return locationStr;
   } catch {
     return selfName;
   }
@@ -257,17 +269,21 @@ export async function getTutorialState(publishedOnly = false): Promise<TutorialS
 
   const items: Record<string, Item[]> = Object.fromEntries(itemsEntries);
 
-  // Load relationships for all non-last levels (levels that have children)
+  // Load relationships for all non-last levels (levels that have children).
+  // Uses composite keys (e.g. "printerId:paperId") at depth > 0 so each
+  // ancestor path has its own independent set of children.
   const relationships: Record<string, Record<string, RelationshipEntry[]>> = {};
 
   if (activeLevels.length > 1) {
-    await Promise.all(
-      activeLevels.slice(0, -1).map(async (level) => {
-        const levelItems = items[level.id] ?? [];
-        const relsByItem: Record<string, RelationshipEntry[]> = {};
+    // Sequential by level so each level can build on the parent's composite keys
+    for (let li = 0; li < activeLevels.length - 1; li++) {
+      const level = activeLevels[li];
+      const relsByKey: Record<string, RelationshipEntry[]> = {};
 
+      if (li === 0) {
+        // Top level: key = item.id (no composite needed)
         await Promise.all(
-          levelItems.map(async (item) => {
+          (items[level.id] ?? []).map(async (item) => {
             const snap = await childrenCol(item.id).get();
             let children: RelationshipEntry[] = snap.docs.map((doc) => ({
               childItemId: doc.id,
@@ -275,13 +291,31 @@ export async function getTutorialState(publishedOnly = false): Promise<TutorialS
             }));
             if (publishedOnly) children = children.filter((c) => c.published);
             children.sort((a, b) => a.order - b.order);
-            relsByItem[item.id] = children;
+            relsByKey[item.id] = children;
           }),
         );
+      } else {
+        // Deeper levels: composite key = ancestorKey:childItemId
+        const parentLevelRels = relationships[activeLevels[li - 1].id] ?? {};
+        await Promise.all(
+          Object.entries(parentLevelRels).flatMap(([ancestorKey, children]) =>
+            children.map(async (rel) => {
+              const compositeKey = `${ancestorKey}:${rel.childItemId}`;
+              const snap = await childrenCol(compositeKey).get();
+              let kids: RelationshipEntry[] = snap.docs.map((doc) => ({
+                childItemId: doc.id,
+                ...(doc.data() as Omit<RelationshipEntry, "childItemId">),
+              }));
+              if (publishedOnly) kids = kids.filter((c) => c.published);
+              kids.sort((a, b) => a.order - b.order);
+              relsByKey[compositeKey] = kids;
+            }),
+          ),
+        );
+      }
 
-        relationships[level.id] = relsByItem;
-      }),
-    );
+      relationships[level.id] = relsByKey;
+    }
   }
 
   // Load steps for items at the last active level

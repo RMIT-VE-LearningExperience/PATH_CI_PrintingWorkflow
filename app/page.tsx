@@ -251,7 +251,10 @@ export default function HomePage() {
     if (!state || !currentLevel) return [];
     const all = state.items[currentLevel.id] ?? [];
     if (selectionStack.length === 0) return all;
-    const rels = (state.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? []).slice() as RelationshipEntry[];
+    const relKey = selectionStack.length >= 2
+      ? `${selectionStack[selectionStack.length - 2].itemId}:${parentEntry!.itemId}`
+      : parentEntry!.itemId;
+    const rels = (state.relationships[parentLevel!.id]?.[relKey] ?? []).slice() as RelationshipEntry[];
     rels.sort((a, b) => a.order - b.order);
     return rels
       .map((r) => all.find((i) => i.id === r.childItemId))
@@ -272,7 +275,10 @@ export default function HomePage() {
         (state.items[currentLevel.id] ?? []).map((i) => [i.id, i.published]),
       );
     }
-    const rels = (state.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? []) as RelationshipEntry[];
+    const relKey = selectionStack.length >= 2
+      ? `${selectionStack[selectionStack.length - 2].itemId}:${parentEntry!.itemId}`
+      : parentEntry!.itemId;
+    const rels = (state.relationships[parentLevel!.id]?.[relKey] ?? []) as RelationshipEntry[];
     return Object.fromEntries(rels.map((r) => [r.childItemId, r.published]));
   }, [state, currentLevel, selectionStack, parentLevel, parentEntry]);
 

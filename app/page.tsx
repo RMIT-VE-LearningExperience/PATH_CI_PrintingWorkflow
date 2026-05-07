@@ -652,6 +652,8 @@ export default function HomePage() {
       <Box
         sx={{
           minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
           bgcolor: colors.lightBg,
           py: { xs: 4, sm: 5, md: 7 },
           pt: previewPt,
@@ -716,6 +718,9 @@ export default function HomePage() {
             </Grid>
           )}
         </Container>
+        <Box sx={{ mt: "auto" }}>
+          <Footer year={new Date().getFullYear()} isAdmin={false} />
+        </Box>
       </Box>
     );
   }
@@ -733,7 +738,7 @@ export default function HomePage() {
 
     if (currentSteps.length === 0) {
       return (
-        <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, py: { xs: 4, sm: 5, md: 7 }, pt: previewPt }}>
+        <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", bgcolor: colors.lightBg, py: { xs: 4, sm: 5, md: 7 }, pt: previewPt }}>
           {previewBanner}
           <Container maxWidth="md">
             <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
@@ -758,6 +763,9 @@ export default function HomePage() {
               <Alert severity="info">Content unavailable, check with staff</Alert>
             </Stack>
           </Container>
+          <Box sx={{ mt: "auto" }}>
+            <Footer year={new Date().getFullYear()} isAdmin={false} />
+          </Box>
         </Box>
       );
     }
@@ -904,6 +912,8 @@ export default function HomePage() {
             </Stack>
           </Container>
         </Box>
+
+        <Footer year={new Date().getFullYear()} isAdmin={false} />
 
         {/* Image zoom modal */}
         <Modal

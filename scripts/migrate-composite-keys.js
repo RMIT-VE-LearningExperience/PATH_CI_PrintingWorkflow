@@ -15,40 +15,25 @@
  * only deletes old paper-level links after successfully creating replacements.
  */
 
-const admin = require("firebase-admin");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { readFileSync } = require("fs");
 
-// ── Firebase init ──────────────────────────────────────────────────────────────
+// ── Firebase init (same credential resolution as import-content.js) ────────────
 
-let app;
-try {
-  app = admin.app();
-} catch {
-  const env = process.env;
-  const projectId =
-    env.FIREBASE_PROJECT_ID ||
-    env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-
-  if (!projectId) {
-    console.error(
-      "ERROR: Set FIREBASE_PROJECT_ID (or NEXT_PUBLIC_FIREBASE_PROJECT_ID) in your environment,\n" +
-      "or place a service account JSON at scripts/service-account.json and update this script.",
-    );
-    process.exit(1);
-  }
-
-  // Try service account file first, fall back to application default credentials
-  try {
-    const sa = require("./service-account.json");
-    app = admin.initializeApp({ credential: admin.credential.cert(sa) });
-  } catch {
-    app = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      projectId,
-    });
-  }
+function loadCredential() {
+  const projectId   = process.env.FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey  = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (projectId && clientEmail && privateKey) return cert({ projectId, clientEmail, privateKey });
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (credPath) return cert(JSON.parse(readFileSync(credPath, "utf-8")));
+  console.error("No Firebase credentials found.\nSet FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY in your environment.");
+  process.exit(1);
 }
 
-const db = admin.firestore(app);
+const app = initializeApp({ credential: loadCredential() });
+const db  = getFirestore(app);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

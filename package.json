@@ -12,7 +12,8 @@
     "lint": "next lint",
     "dev:staging": "dotenv -e .env.staging.local -- next dev",
     "seed-admins": "node --env-file=.env.local scripts/seed-admins.js",
-    "seed-content": "node --env-file=.env.local scripts/seed-content.js"
+    "seed-content": "node --env-file=.env.local scripts/seed-content.js",
+    "import-content": "node --env-file=.env.local scripts/import-content.js"
   },
   "dependencies": {
     "@emotion/react": "^11.11.4",

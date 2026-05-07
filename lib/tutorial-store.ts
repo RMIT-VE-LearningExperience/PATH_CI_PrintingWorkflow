@@ -189,7 +189,12 @@ export async function getTutorialState(publishedOnly = false): Promise<TutorialS
         createdAt: toDate(doc.data().createdAt),
         lastModified: toDate(doc.data().lastModified),
       }));
-      if (publishedOnly) items = items.filter((i) => i.published);
+      // Only filter top-level items by item.published.
+      // Deeper items (papers, colours) are controlled by relationship.published,
+      // since the CMS toggle only sets relationship.published for non-top items.
+      if (publishedOnly && level.id === activeLevels[0]?.id) {
+        items = items.filter((i) => i.published);
+      }
       items.sort((a, b) => a.name.localeCompare(b.name));
       return [level.id, items] as [string, Item[]];
     }),

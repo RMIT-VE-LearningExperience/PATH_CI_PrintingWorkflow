@@ -1083,7 +1083,13 @@ export default function AdminDashboard() {
         onPreview={() => void handlePreview()}
         previewLoading={previewLoading}
         level1Items={activeLevels[0] ? (state?.items[activeLevels[0].id] ?? []) : []}
-        onNavigateLevel1={(item) => handleNavigate(item, activeLevels[0]!.id)}
+        onNavigateLevel1={(item) => {
+          setNavStack([{ levelId: activeLevels[0]!.id, itemId: item.id, itemName: item.name }]);
+          setGlobalListLevelId(null);
+          setShowDeleted(false);
+          setSortByName(false);
+          setExpandedStepId(null);
+        }}
         onLevel1ItemMenu={(item, anchorEl) =>
           setMenuTarget({ anchorEl, type: "item", id: item.id, extra: activeLevels[0]!.id, item })
         }

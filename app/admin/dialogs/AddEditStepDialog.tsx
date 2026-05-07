@@ -70,9 +70,15 @@ export default function AddEditStepDialog({
   const [cropOpen, setCropOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const originalImageRef = useRef("");
+  const prevOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      prevOpenRef.current = false;
+      return;
+    }
+    if (prevOpenRef.current) return;
+    prevOpenRef.current = true;
     setTitle(initialData?.title ?? "");
     setContentHtml(initialData?.contentHtml ?? "");
     const vidUrl = initialData?.videoUrl ?? "";

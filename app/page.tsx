@@ -1,31 +1,29 @@
 "use client";
 
+import Image from "next/image";
 import {
   Alert,
   Box,
-  Breadcrumbs,
-  Button,
   Card,
-  CardActionArea,
   CardContent,
-  CardMedia,
-  Chip,
   CircularProgress,
   Container,
-  Divider,
   Fab,
   Grid,
-  Link,
+  IconButton,
   Modal,
-  Paper,
   Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
+  Add as AddIcon,
   ArrowBack as ArrowBackIcon,
   Home as HomeIcon,
   Image as ImageIcon,
+  Info as InfoIcon,
   KeyboardArrowUp as KeyboardArrowUpIcon,
+  Remove as RemoveIcon,
 } from "@mui/icons-material";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { trackEvent } from "./components/GoogleAnalytics";
@@ -40,10 +38,12 @@ const colors = {
   primary: "#3D8078",
   darkBg: "#45443F",
   lightBg: "#FDF9F1",
+  lightBorder: "#E5E1D7",
   text: "#45443F",
   lightText: "#62615C",
-  cardShadow: "0 2px 8px rgba(69,68,63,0.08)",
-  cardShadowHover: "0 8px 16px rgba(69,68,63,0.12)",
+  cardBg: "#FFFFFF",
+  cardShadow: "0 2px 8px rgba(69, 68, 63, 0.08)",
+  cardShadowHover: "0 8px 16px rgba(69, 68, 63, 0.12)",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -66,51 +66,140 @@ function sanitizeHtml(html: string): string {
     });
 }
 
-// ── Item card ─────────────────────────────────────────────────────────
+// ── Nav icon button ───────────────────────────────────────────────────
 
-function ItemCard({ item, onClick }: { item: Item; onClick: () => void }) {
+function NavIconButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
-    <Card
+    <IconButton
+      onClick={onClick}
       sx={{
-        boxShadow: colors.cardShadow,
-        transition: "box-shadow 0.2s, transform 0.2s",
-        "&:hover": { boxShadow: colors.cardShadowHover, transform: "translateY(-2px)" },
-        bgcolor: "#fff",
+        color: colors.text,
+        border: `1px solid ${colors.lightBorder}`,
+        borderRadius: "6px",
+        transition: "all 0.2s ease",
+        "&:hover": { bgcolor: colors.lightBorder },
       }}
     >
-      <CardActionArea onClick={onClick}>
-        <Box
-          sx={{
-            aspectRatio: "4/3",
-            bgcolor: "grey.100",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-          }}
-        >
-          {item.thumbnailUrl ? (
-            <CardMedia
-              component="img"
-              image={item.thumbnailUrl}
-              alt={item.name}
-              sx={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <ImageIcon sx={{ fontSize: 56, color: "grey.300" }} />
-          )}
-        </Box>
-        <CardContent>
-          <Typography variant="subtitle1" fontWeight={700} color={colors.text}>
-            {item.name}
-          </Typography>
-          {item.description && (
-            <Typography variant="body2" color={colors.lightText} sx={{ mt: 0.5 }}>
-              {item.description}
+      {children}
+    </IconButton>
+  );
+}
+
+// ── Item card ─────────────────────────────────────────────────────────
+
+function ItemCard({
+  item,
+  isLastLevel,
+  isPreview,
+  onClick,
+}: {
+  item: Item;
+  isLastLevel: boolean;
+  isPreview: boolean;
+  onClick: () => void;
+}) {
+  const isUnpublished = isPreview && !item.published;
+
+  return (
+    <Card
+      onClick={onClick}
+      sx={{
+        cursor: "pointer",
+        height: "100%",
+        borderRadius: "8px",
+        border: isUnpublished ? "2px solid #f59e0b" : "none",
+        backgroundColor: colors.cardBg,
+        boxShadow: colors.cardShadow,
+        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        "&:hover": { boxShadow: colors.cardShadowHover, transform: "translateY(-4px)" },
+        "&:active": { transform: "translateY(-2px)" },
+      }}
+    >
+      {/* Thumbnail */}
+      <Box
+        sx={{
+          position: "relative",
+          width: "100%",
+          paddingBottom: "66.67%",
+          overflow: "hidden",
+          bgcolor: "#FDF9F1",
+        }}
+      >
+        {item.thumbnailUrl ? (
+          <Image
+            src={item.thumbnailUrl}
+            alt={item.name}
+            fill
+            style={{ objectFit: "cover" }}
+            sizes="(max-width: 600px) 100vw, (max-width: 960px) 50vw, 33vw"
+          />
+        ) : (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: "#E5E1D7",
+            }}
+          >
+            <ImageIcon sx={{ color: "#C2BDB1", fontSize: 40 }} />
+          </Box>
+        )}
+      </Box>
+
+      {/* Content */}
+      <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
+        {isLastLevel ? (
+          /* Last level: description as bullet list (e.g. colours) */
+          <Stack spacing={1.5}>
+            <Typography
+              variant="h6"
+              sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, lineHeight: 1.4 }}
+            >
+              {item.name}
             </Typography>
-          )}
-        </CardContent>
-      </CardActionArea>
+            {item.description && (
+              <Box
+                component="ul"
+                sx={{
+                  m: 0, pl: 2,
+                  fontSize: { xs: "0.85rem", sm: "0.9rem" },
+                  color: colors.lightText,
+                  lineHeight: 1.4,
+                  wordBreak: "break-word",
+                }}
+              >
+                {item.description.split("\n").filter(Boolean).map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))}
+              </Box>
+            )}
+          </Stack>
+        ) : (
+          /* Other levels: description as info tooltip */
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <Typography
+              variant="h6"
+              sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, flex: 1, lineHeight: 1.4 }}
+            >
+              {item.name}
+            </Typography>
+            {item.description && (
+              <Tooltip title={item.description} arrow placement="top">
+                <IconButton
+                  size="small"
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{ color: colors.primary, width: 24, height: 24, "&:hover": { bgcolor: "rgba(61,128,120,0.1)" } }}
+                >
+                  <InfoIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Stack>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -129,9 +218,11 @@ export default function HomePage() {
   const [selectionStack, setSelectionStack] = useState<NavEntry[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [imgZoom, setImgZoom] = useState(1);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const visibleStepsRef = useRef(new Set<number>());
   const lastTrackedStep = useRef(-1);
 
   // ── Derived ─────────────────────────────────────────────────────────
@@ -150,14 +241,18 @@ export default function HomePage() {
   const parentLevel: Level | undefined =
     selectionStack.length > 0 ? activeLevels[selectionStack.length - 1] : undefined;
 
+  // Whether we're selecting at the last level before steps (e.g. colours)
+  const isLastSelectionLevel = !atSteps && currentLevel !== undefined &&
+    activeLevels.indexOf(currentLevel) === activeLevels.length - 1;
+
   const visibleItems = useMemo((): Item[] => {
     if (!state || !currentLevel) return [];
     const all = state.items[currentLevel.id] ?? [];
     if (selectionStack.length === 0) return all;
-    const rels = (state.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? []).slice();
-    rels.sort((a, b) => (a as RelationshipEntry).order - (b as RelationshipEntry).order);
+    const rels = (state.relationships[parentLevel!.id]?.[parentEntry!.itemId] ?? []).slice() as RelationshipEntry[];
+    rels.sort((a, b) => a.order - b.order);
     return rels
-      .map((r) => all.find((i) => i.id === (r as RelationshipEntry).childItemId))
+      .map((r) => all.find((i) => i.id === r.childItemId))
       .filter(Boolean) as Item[];
   }, [state, currentLevel, selectionStack, parentLevel, parentEntry]);
 
@@ -201,7 +296,6 @@ export default function HomePage() {
           .sort((a, b) => a.order - b.order);
 
         if (preview) {
-          // Preview mode: restore from URL params
           const previewSelections: NavEntry[] = [];
           for (let i = 0; i < levels.length; i++) {
             const idParam = params.get(`l${i + 1}`);
@@ -212,7 +306,6 @@ export default function HomePage() {
           return;
         }
 
-        // Deep link: l1/l2/l3 params (all levels)
         if (params.get("l1")) {
           const publicSelections: NavEntry[] = [];
           for (let i = 0; i < levels.length; i++) {
@@ -226,7 +319,6 @@ export default function HomePage() {
           return;
         }
 
-        // Deep link: legacy ?[level1_singular]=slug
         const level1 = levels[0];
         if (level1) {
           const slugParam = params.get(level1.singularName.toLowerCase());
@@ -241,13 +333,11 @@ export default function HomePage() {
           }
         }
 
-        // Restore from localStorage
         try {
           const stored = window.localStorage.getItem(PROGRESS_KEY);
           if (stored) {
             const parsed = JSON.parse(stored) as { selections?: NavEntry[] };
             if (parsed.selections?.length) {
-              // Validate all saved IDs still exist
               const valid = parsed.selections.every((entry, i) => {
                 const level = levels[i];
                 return level && (newState.items[level.id] ?? []).some((item) => item.id === entry.itemId);
@@ -268,48 +358,52 @@ export default function HomePage() {
   // ── Scroll / back-to-top ──────────────────────────────────────────────
 
   useEffect(() => {
-    function onScroll() {
-      setShowBackToTop(window.scrollY > 400);
-    }
+    if (!atSteps) { setShowBackToTop(false); return; }
+    function onScroll() { setShowBackToTop(window.scrollY > 400); }
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [atSteps]);
 
   // ── Step intersection observer ────────────────────────────────────────
 
   useEffect(() => {
     if (!atSteps || currentSteps.length === 0) return;
+    visibleStepsRef.current.clear();
     lastTrackedStep.current = -1;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const idx = stepRefs.current.indexOf(entry.target as HTMLDivElement);
-          if (idx < 0 || idx <= lastTrackedStep.current) continue;
-
-          lastTrackedStep.current = idx;
-          setActiveStepIndex(idx);
-
-          const step = currentSteps[idx];
-          if (step) {
-            trackEvent("view_step", {
-              step_number: idx + 1,
-              step_title: step.title,
-            });
+        entries.forEach((entry) => {
+          const idx = Number(entry.target.getAttribute("data-step-index"));
+          if (entry.isIntersecting) {
+            visibleStepsRef.current.add(idx);
+          } else {
+            visibleStepsRef.current.delete(idx);
           }
-
-          if (idx === currentSteps.length - 1) {
-            trackEvent("complete_guide", { total_steps: currentSteps.length });
-          }
-        }
+        });
+        const visible = [...visibleStepsRef.current].sort((a, b) => a - b);
+        if (visible.length > 0) setActiveStepIndex(visible[0]);
       },
-      { threshold: 0.5 },
+      { threshold: 0.2 },
     );
 
     stepRefs.current.forEach((el) => el && observer.observe(el));
     return () => observer.disconnect();
   }, [atSteps, currentSteps]);
+
+  // ── GA step tracking ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!atSteps || activeStepIndex === lastTrackedStep.current) return;
+    lastTrackedStep.current = activeStepIndex;
+    const step = currentSteps[activeStepIndex];
+    if (step) {
+      trackEvent("view_step", { step_number: activeStepIndex + 1, step_title: step.title });
+    }
+    if (currentSteps.length > 0 && activeStepIndex === currentSteps.length - 1) {
+      trackEvent("complete_guide", { total_steps: currentSteps.length });
+    }
+  }, [activeStepIndex, atSteps, currentSteps]);
 
   // ── Navigation ────────────────────────────────────────────────────────
 
@@ -332,16 +426,12 @@ export default function HomePage() {
 
     if (!isPreviewMode) {
       const url = new URL(window.location.pathname, window.location.origin);
-      newStack.forEach((entry, i) => {
-        url.searchParams.set(`l${i + 1}`, entry.itemId);
-      });
+      newStack.forEach((entry, i) => url.searchParams.set(`l${i + 1}`, entry.itemId));
       window.history.replaceState({}, "", url.toString());
     }
 
-    // GA event
     trackEvent(`select_${activeLevels.find((l) => l.id === levelId)?.singularName?.toLowerCase() ?? "item"}`, {
-      name: item.name,
-      id: item.id,
+      name: item.name, id: item.id,
     });
 
     saveProgress(newStack);
@@ -354,387 +444,488 @@ export default function HomePage() {
 
     if (!isPreviewMode) {
       const url = new URL(window.location.pathname, window.location.origin);
-      newStack.forEach((entry, i) => {
-        url.searchParams.set(`l${i + 1}`, entry.itemId);
-      });
-      window.history.replaceState({}, "", url.toString());
+      if (newStack.length === 0) {
+        window.history.replaceState({}, "", window.location.pathname);
+      } else {
+        newStack.forEach((entry, i) => url.searchParams.set(`l${i + 1}`, entry.itemId));
+        window.history.replaceState({}, "", url.toString());
+      }
     }
 
     saveProgress(newStack);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // ── Section heading ───────────────────────────────────────────────────
+  // ── Preview banner ────────────────────────────────────────────────────
 
-  function renderSectionHeading(level: Level | undefined) {
-    if (!level?.sectionTitle && !level?.sectionSubtitle) return null;
+  const previewBanner = isPreviewMode ? (
+    <Box
+      sx={{
+        position: "fixed",
+        top: 0, left: 0, right: 0,
+        zIndex: 1000,
+        bgcolor: "#f59e0b",
+        color: "#45443F",
+        textAlign: "center",
+        py: 0.75,
+        px: 2,
+        fontSize: "0.8rem",
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+      }}
+    >
+      PREVIEW MODE — Includes unpublished content
+    </Box>
+  ) : null;
+
+  const previewPt = isPreviewMode
+    ? { xs: "calc(2rem + 36px)", sm: "calc(2.5rem + 36px)", md: "calc(3.5rem + 36px)" }
+    : undefined;
+
+  // ── Loading ───────────────────────────────────────────────────────────
+
+  if (loading) {
     return (
-      <Box sx={{ mb: 3 }}>
-        {level.sectionTitle && (
-          <Typography variant="h5" fontWeight={700} color={colors.text}>
-            {level.sectionTitle}
-          </Typography>
-        )}
-        {level.sectionSubtitle && (
-          <Typography variant="body1" color={colors.lightText} sx={{ mt: 0.5 }}>
-            {level.sectionSubtitle}
-          </Typography>
-        )}
-      </Box>
-    );
-  }
-
-  // ── Breadcrumbs ───────────────────────────────────────────────────────
-
-  function renderBreadcrumbs() {
-    if (!state || selectionStack.length === 0) return null;
-    return (
-      <Breadcrumbs sx={{ mb: 2 }}>
-        <Link
-          component="button"
-          variant="body2"
-          onClick={() => handleBack(0)}
-          underline="hover"
-          sx={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 0.5 }}
-        >
-          <HomeIcon sx={{ fontSize: 16 }} />
-          {activeLevels[0]?.name ?? "Home"}
-        </Link>
-        {selectionStack.slice(0, -1).map((entry, i) => {
-          const level = activeLevels[i];
-          const item = (state.items[level?.id ?? ""] ?? []).find((it) => it.id === entry.itemId);
-          return (
-            <Link
-              key={entry.itemId}
-              component="button"
-              variant="body2"
-              onClick={() => handleBack(i + 1)}
-              underline="hover"
-              sx={{ cursor: "pointer" }}
-            >
-              {item?.name ?? entry.itemId}
-            </Link>
-          );
-        })}
-        {(() => {
-          const last = selectionStack[selectionStack.length - 1];
-          const level = activeLevels[selectionStack.length - 1];
-          const item = (state.items[level?.id ?? ""] ?? []).find((it) => it.id === last.itemId);
-          return (
-            <Typography variant="body2" color="text.primary">
-              {item?.name ?? last.itemId}
-            </Typography>
-          );
-        })()}
-      </Breadcrumbs>
-    );
-  }
-
-  // ── Steps view ────────────────────────────────────────────────────────
-
-  function renderSteps() {
-    if (!atSteps) return null;
-    const parentName = (() => {
-      if (!state || !parentEntry) return "";
-      const level = parentLevel;
-      const item = (state.items[level?.id ?? ""] ?? []).find((i) => i.id === parentEntry.itemId);
-      return item?.name ?? "";
-    })();
-
-    return (
-      <Box>
-        {renderBreadcrumbs()}
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => handleBack(selectionStack.length - 1)}
-          sx={{ textTransform: "none", mb: 2, color: colors.text }}
-        >
-          Back to {parentLevel?.name}
-        </Button>
-
-        {/* Sticky step counter */}
-        {currentSteps.length > 0 && (
-          <Box
-            sx={{
-              position: "sticky",
-              top: 0,
-              bgcolor: "rgba(253,249,241,0.95)",
-              backdropFilter: "blur(4px)",
-              zIndex: 10,
-              py: 1.25,
-              mb: 2,
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Container maxWidth="lg">
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <Typography variant="body2" fontWeight={600} color={colors.primary}>
-                  {parentName}
-                </Typography>
-                <Divider orientation="vertical" flexItem />
-                <Typography variant="body2" color={colors.lightText}>
-                  Step {activeStepIndex + 1} of {currentSteps.length}
-                </Typography>
-              </Stack>
-            </Container>
-          </Box>
-        )}
-
-        {currentSteps.length === 0 && (
-          <Typography color={colors.lightText}>No steps have been added yet.</Typography>
-        )}
-
-        <Stack spacing={3}>
-          {currentSteps.map((step, index) => {
-            const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
-            return (
-              <Paper
-                key={step.id}
-                ref={(el) => {
-                  stepRefs.current[index] = el;
-                }}
-                sx={{ p: { xs: 2, md: 3 }, boxShadow: colors.cardShadow, bgcolor: "#fff" }}
-              >
-                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
-                  <Chip
-                    label={index + 1}
-                    size="small"
-                    sx={{ bgcolor: colors.primary, color: "#fff", fontWeight: 700 }}
-                  />
-                  <Typography variant="h6" fontWeight={700} color={colors.text}>
-                    {step.title}
-                  </Typography>
-                </Stack>
-
-                {step.contentHtml && (
-                  <Typography
-                    component="div"
-                    variant="body1"
-                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.contentHtml) }}
-                    sx={{
-                      mb: 2,
-                      color: colors.lightText,
-                      "& a": { color: colors.primary },
-                      "& ul, & ol": { pl: 2.5 },
-                    }}
-                  />
-                )}
-
-                {embedUrl ? (
-                  <Box sx={{ position: "relative", paddingTop: "56.25%", borderRadius: 1, overflow: "hidden" }}>
-                    <iframe
-                      src={embedUrl}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        height: "100%",
-                        border: "none",
-                      }}
-                      allowFullScreen
-                      loading="lazy"
-                    />
-                  </Box>
-                ) : step.imageUrl ? (
-                  <Box
-                    component="img"
-                    src={step.imageUrl}
-                    alt={step.title}
-                    onClick={() => setEnlargedImage(step.imageUrl)}
-                    sx={{
-                      width: "100%",
-                      borderRadius: 1,
-                      cursor: "zoom-in",
-                      display: "block",
-                      maxHeight: 480,
-                      objectFit: "contain",
-                    }}
-                  />
-                ) : null}
-              </Paper>
-            );
-          })}
-        </Stack>
-      </Box>
-    );
-  }
-
-  // ── Selection view ────────────────────────────────────────────────────
-
-  function renderSelection() {
-    if (atSteps || !state || !currentLevel) return null;
-    const isLevel1 = selectionStack.length === 0;
-
-    return (
-      <Box>
-        {/* Homepage fields — only at Level 1 */}
-        {isLevel1 && (state.homepageTitle || state.homepageDescription) && (
-          <Box sx={{ mb: 4, textAlign: "center" }}>
-            {state.homepageTitle && (
-              <Typography variant="h4" fontWeight={700} color={colors.text} gutterBottom>
-                {state.homepageTitle}
-              </Typography>
-            )}
-            {state.homepageDescription && (
-              <Typography variant="body1" color={colors.lightText} sx={{ maxWidth: 600, mx: "auto" }}>
-                {state.homepageDescription}
-              </Typography>
-            )}
-          </Box>
-        )}
-
-        {!isLevel1 && (
-          <>
-            {renderBreadcrumbs()}
-            <Button
-              startIcon={<ArrowBackIcon />}
-              onClick={() => handleBack(selectionStack.length - 1)}
-              sx={{ textTransform: "none", mb: 2, color: colors.text }}
-            >
-              Back to {activeLevels[selectionStack.length - 1]?.name}
-            </Button>
-          </>
-        )}
-
-        {renderSectionHeading(currentLevel)}
-
-        {visibleItems.length === 0 ? (
-          <Typography color={colors.lightText}>
-            No items available yet.
-          </Typography>
-        ) : (
-          <Grid container spacing={2}>
-            {visibleItems.map((item) => (
-              <Grid item key={item.id} xs={12} sm={6} md={4}>
-                <ItemCard item={item} onClick={() => handleSelect(item, currentLevel.id)} />
-              </Grid>
-            ))}
-          </Grid>
-        )}
+      <Box sx={{ position: "fixed", inset: 0, bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Box sx={{ position: "relative", display: "inline-flex" }}>
+          <CircularProgress variant="determinate" value={100} size={48} thickness={4} sx={{ color: "rgba(61,128,120,0.15)" }} />
+          <CircularProgress size={48} thickness={4} sx={{ color: colors.primary, position: "absolute", left: 0, "& .MuiCircularProgress-circle": { strokeLinecap: "round" } }} />
+        </Box>
       </Box>
     );
   }
 
   // ── Not found ─────────────────────────────────────────────────────────
 
-  if (!loading && notFound) {
+  if (notFound) {
     return (
-      <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", bgcolor: colors.lightBg }}>
-        <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", py: 8 }}>
-          <Stack alignItems="center" spacing={2}>
-            <Typography variant="h5" fontWeight={700} color={colors.text}>
-              Item not found
-            </Typography>
-            <Typography color={colors.lightText}>
-              The requested item could not be found or is not published.
-            </Typography>
-            <Button
-              startIcon={<HomeIcon />}
-              variant="contained"
-              href="/"
-              sx={{ textTransform: "none", bgcolor: colors.primary, "&:hover": { bgcolor: "#326b64" } }}
-            >
-              Go to home
-            </Button>
-          </Stack>
-        </Box>
-        <Footer year={new Date().getFullYear()} isAdmin={false} />
+      <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Stack spacing={3} alignItems="center" sx={{ textAlign: "center", px: 3 }}>
+          <Typography variant="h4" fontWeight={700} color={colors.text}>Item not found</Typography>
+          <Typography variant="body1" color={colors.lightText}>
+            This link is no longer available or has been removed.
+          </Typography>
+          <Box
+            component="button"
+            onClick={() => { setNotFound(false); setSelectionStack([]); }}
+            sx={{
+              bgcolor: colors.primary, color: "#fff", fontWeight: 700,
+              textTransform: "none", borderRadius: 2, px: 3, py: 1,
+              border: "none", cursor: "pointer", fontSize: "1rem",
+              "&:hover": { bgcolor: colors.darkBg },
+            }}
+          >
+            {activeLevels[0]?.name ?? "Home"}
+          </Box>
+        </Stack>
       </Box>
     );
   }
 
-  // ── Main render ───────────────────────────────────────────────────────
+  // ── Error ─────────────────────────────────────────────────────────────
 
-  return (
-    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", bgcolor: colors.lightBg }}>
-      {/* Preview banner */}
-      {isPreviewMode && (
-        <Alert
-          severity="warning"
-          sx={{
-            borderRadius: 0,
-            "& .MuiAlert-message": { fontWeight: 500 },
-          }}
-        >
-          Preview mode — unpublished content is visible. This URL will expire in 3 hours.
-        </Alert>
-      )}
+  if (error) {
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    );
+  }
 
-      {/* Content */}
-      <Box sx={{ flex: 1 }}>
-        {loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 12 }}>
-            <CircularProgress sx={{ color: colors.primary }} />
-          </Box>
-        )}
+  if (!state?.hierarchyConfigured) {
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Alert severity="info">This guide is not yet configured.</Alert>
+      </Box>
+    );
+  }
 
-        {!loading && error && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 12 }}>
-            <Alert severity="error">{error}</Alert>
-          </Box>
-        )}
+  // ── Homepage (level 1 selection) ──────────────────────────────────────
 
-        {!loading && !error && state && !state.hierarchyConfigured && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 12 }}>
-            <Alert severity="info">This guide is not yet configured.</Alert>
-          </Box>
-        )}
+  if (selectionStack.length === 0) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: colors.lightBg,
+          pt: isPreviewMode ? { xs: "calc(4rem + 36px)", sm: "calc(5rem + 36px)", md: "calc(7rem + 36px)" } : { xs: 4, sm: 5, md: 7 },
+          pb: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {previewBanner}
+        <Container maxWidth="md">
+          {/* Header */}
+          <Stack spacing={2} sx={{ mb: { xs: 5, sm: 6, md: 8 }, textAlign: "center" }}>
+            <Typography
+              variant="h1"
+              sx={{
+                fontSize: { xs: "2.25rem", sm: "2.75rem", md: "3.5rem" },
+                fontWeight: 800,
+                letterSpacing: "-0.02em",
+                color: colors.text,
+              }}
+            >
+              {state.homepageTitle || activeLevels[0]?.name || "Guide"}
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{ fontSize: { xs: "1rem", sm: "1.125rem" }, color: colors.lightText, lineHeight: 1.6 }}
+            >
+              {state.homepageDescription || `Select a ${(activeLevels[0]?.singularName ?? "item").toLowerCase()} to begin.`}
+            </Typography>
+          </Stack>
 
-        {!loading && !error && state?.hierarchyConfigured && (
-          <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
-            {renderSelection()}
-            {renderSteps()}
+          {/* Section subtitle */}
+          {activeLevels[0]?.sectionSubtitle && (
+            <Typography
+              variant="body1"
+              sx={{ fontSize: { xs: "0.95rem", sm: "1.05rem" }, color: colors.text, mb: { xs: 3, sm: 4 }, fontWeight: 500, textAlign: "center", letterSpacing: "0.01em" }}
+            >
+              {activeLevels[0].sectionSubtitle}
+            </Typography>
+          )}
+
+          {visibleItems.length === 0 ? (
+            <Alert severity="info">No items available yet.</Alert>
+          ) : (
+            <Grid container spacing={{ xs: 2, sm: 2.5, md: 3 }}>
+              {visibleItems.map((item) => (
+                <Grid item xs={12} sm={6} md={4} key={item.id}>
+                  <ItemCard
+                    item={item}
+                    isLastLevel={isLastSelectionLevel}
+                    isPreview={isPreviewMode}
+                    onClick={() => handleSelect(item, currentLevel!.id)}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Container>
+        <Box sx={{ mt: "auto" }}>
+          <Footer year={new Date().getFullYear()} isAdmin={false} />
+        </Box>
+      </Box>
+    );
+  }
+
+  // ── Inner selection (level 2+) ────────────────────────────────────────
+
+  if (!atSteps && currentLevel) {
+    // Build context breadcrumb for the nav bar center
+    const level1Item = state.items[activeLevels[0]?.id ?? ""]?.find((i) => i.id === selectionStack[0]?.itemId);
+    const level2Item = selectionStack.length > 1
+      ? state.items[activeLevels[1]?.id ?? ""]?.find((i) => i.id === selectionStack[1]?.itemId)
+      : null;
+
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          bgcolor: colors.lightBg,
+          py: { xs: 4, sm: 5, md: 7 },
+          pt: previewPt,
+        }}
+      >
+        {previewBanner}
+        <Container maxWidth="md">
+          {/* Top navigation */}
+          <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+            <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+              <ArrowBackIcon />
+            </NavIconButton>
+            <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+              <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                {level1Item?.name ?? ""}
+              </Typography>
+              {level2Item && (
+                <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  {level2Item.name}
+                </Typography>
+              )}
+            </Stack>
+            <NavIconButton onClick={() => handleBack(0)}>
+              <HomeIcon />
+            </NavIconButton>
+          </Stack>
+
+          {/* Section heading */}
+          {(currentLevel.sectionTitle || currentLevel.sectionSubtitle) && (
+            <Stack spacing={2} sx={{ mb: { xs: 4, sm: 5 }, textAlign: "center" }}>
+              {currentLevel.sectionTitle && (
+                <Typography
+                  variant="h2"
+                  sx={{ fontSize: { xs: "1.75rem", sm: "2.25rem", md: "2.5rem" }, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text }}
+                >
+                  {currentLevel.sectionTitle}
+                </Typography>
+              )}
+              {currentLevel.sectionSubtitle && (
+                <Typography variant="body1" sx={{ fontSize: { xs: "0.95rem", sm: "1.05rem" }, color: colors.lightText, lineHeight: 1.5 }}>
+                  {currentLevel.sectionSubtitle}
+                </Typography>
+              )}
+            </Stack>
+          )}
+
+          {visibleItems.length === 0 ? (
+            <Alert severity="info">No items available yet.</Alert>
+          ) : (
+            <Grid container spacing={{ xs: 2, sm: 2.5, md: 3 }}>
+              {visibleItems.map((item) => (
+                <Grid item xs={12} sm={6} md={4} key={item.id}>
+                  <ItemCard
+                    item={item}
+                    isLastLevel={isLastSelectionLevel}
+                    isPreview={isPreviewMode}
+                    onClick={() => handleSelect(item, currentLevel.id)}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          )}
+        </Container>
+      </Box>
+    );
+  }
+
+  // ── Steps view ────────────────────────────────────────────────────────
+
+  if (atSteps) {
+    const level1Item = state.items[activeLevels[0]?.id ?? ""]?.find((i) => i.id === selectionStack[0]?.itemId);
+    const level2Item = selectionStack.length > 1
+      ? state.items[activeLevels[1]?.id ?? ""]?.find((i) => i.id === selectionStack[1]?.itemId)
+      : null;
+    const lastItem = parentEntry
+      ? (state.items[parentLevel?.id ?? ""] ?? []).find((i) => i.id === parentEntry.itemId)
+      : null;
+
+    if (currentSteps.length === 0) {
+      return (
+        <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, py: { xs: 4, sm: 5, md: 7 }, pt: previewPt }}>
+          {previewBanner}
+          <Container maxWidth="md">
+            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                <ArrowBackIcon />
+              </NavIconButton>
+              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                  {level1Item?.name ?? ""}
+                </Typography>
+                {level2Item && (
+                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {level2Item.name}
+                  </Typography>
+                )}
+              </Stack>
+              <NavIconButton onClick={() => handleBack(0)}>
+                <HomeIcon />
+              </NavIconButton>
+            </Stack>
+            <Stack alignItems="center" sx={{ mt: { xs: 6, sm: 8 }, textAlign: "center" }}>
+              <Alert severity="info">Content unavailable, check with staff</Alert>
+            </Stack>
           </Container>
+        </Box>
+      );
+    }
+
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg }}>
+        {previewBanner}
+        {/* Accent line */}
+        <Box sx={{ height: 3, bgcolor: colors.primary, mt: isPreviewMode ? "36px" : 0 }} />
+
+        <Box sx={{ py: { xs: 4, sm: 5, md: 7 } }}>
+          <Container maxWidth="md">
+            {/* Top navigation */}
+            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
+                <ArrowBackIcon />
+              </NavIconButton>
+              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                  {level1Item?.name ?? ""}
+                </Typography>
+                {level2Item && (
+                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {level2Item.name}
+                  </Typography>
+                )}
+              </Stack>
+              <NavIconButton onClick={() => handleBack(0)}>
+                <HomeIcon />
+              </NavIconButton>
+            </Stack>
+
+            {/* Sticky: item name + step counter */}
+            <Box
+              sx={{
+                position: "sticky",
+                top: isPreviewMode ? "36px" : 0,
+                zIndex: 10,
+                bgcolor: colors.lightBg,
+                pb: 2, pt: 1,
+                mb: { xs: 2, sm: 3 },
+                textAlign: "center",
+              }}
+            >
+              <Typography
+                variant="h2"
+                sx={{ fontSize: { xs: "1.75rem", sm: "2.25rem", md: "2.5rem" }, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text, mb: 1 }}
+              >
+                {lastItem?.name ?? ""}
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{ fontSize: { xs: "0.9rem", sm: "1rem" }, fontWeight: 600, color: colors.text, letterSpacing: "0.05em" }}
+              >
+                STEP {currentSteps.length === 0 ? 0 : activeStepIndex + 1} OF {currentSteps.length}
+              </Typography>
+            </Box>
+
+            {/* Step cards */}
+            <Stack spacing={{ xs: 3, sm: 4 }} sx={{ pb: { xs: 6, sm: 8 } }}>
+              {currentSteps.map((step, index) => {
+                const embedUrl = step.videoUrl ? getVideoEmbedUrl(step.videoUrl) : null;
+                const isDirectVideo = /\.(mp4|webm|ogg)(\?.*)?$/i.test(step.videoUrl ?? "");
+                return (
+                  <Card
+                    key={step.id}
+                    ref={(el) => { stepRefs.current[index] = el; }}
+                    data-step-index={index}
+                    sx={{ borderRadius: "8px", border: "none", backgroundColor: colors.cardBg, boxShadow: colors.cardShadow, overflow: "hidden" }}
+                  >
+                    <CardContent sx={{ p: { xs: 2.5, sm: 3.5 } }}>
+                      {/* Step number + title */}
+                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: { xs: 2, sm: 2.5 } }}>
+                        <Box
+                          sx={{
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            width: 40, height: 40, bgcolor: colors.darkBg, color: colors.lightBg,
+                            fontWeight: 700, borderRadius: 1, fontSize: "1.1rem", flexShrink: 0,
+                          }}
+                        >
+                          {index + 1}
+                        </Box>
+                        {step.title && (
+                          <Typography variant="h6" sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.primary }}>
+                            {step.title}
+                          </Typography>
+                        )}
+                      </Stack>
+
+                      {/* Content */}
+                      {step.contentHtml && (
+                        <Box
+                          sx={{
+                            fontSize: { xs: "0.95rem", sm: "1rem" }, color: colors.text, lineHeight: 1.6,
+                            mb: { xs: 2, sm: 3 }, wordBreak: "break-word",
+                            "& p": { mb: 1 }, "& ul, & ol": { pl: 2, mb: 1 }, "& li": { mb: 0.5 },
+                            "& strong, & b": { fontWeight: 700 }, "& em, & i": { fontStyle: "italic" },
+                            "& a": { color: colors.primary, textDecoration: "underline", "&:hover": { opacity: 0.8 } },
+                          }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeHtml(step.contentHtml) }}
+                        />
+                      )}
+
+                      {/* Media */}
+                      {embedUrl ? (
+                        isDirectVideo ? (
+                          <Box component="video" controls sx={{ width: "100%", borderRadius: 1 }}>
+                            <source src={step.videoUrl} />
+                          </Box>
+                        ) : (
+                          <Box sx={{ position: "relative", width: "100%", paddingBottom: "56.25%", borderRadius: 1, overflow: "hidden" }}>
+                            <Box
+                              component="iframe"
+                              src={embedUrl}
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                            />
+                          </Box>
+                        )
+                      ) : step.imageUrl ? (
+                        <Box
+                          onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
+                          sx={{
+                            position: "relative", width: "100%", paddingBottom: "60%",
+                            overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
+                            cursor: "pointer", transition: "all 0.2s ease",
+                            "&:hover": { boxShadow: colors.cardShadowHover },
+                          }}
+                        >
+                          <Image
+                            src={step.imageUrl}
+                            alt={step.title}
+                            fill
+                            style={{ objectFit: "contain" }}
+                            sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
+                          />
+                        </Box>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </Stack>
+          </Container>
+        </Box>
+
+        {/* Image zoom modal */}
+        <Modal
+          open={!!enlargedImage}
+          onClose={() => { setEnlargedImage(null); setImgZoom(1); }}
+          sx={{ display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.85)" }}
+        >
+          <Box sx={{ outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+            <Box sx={{ overflow: "auto", maxWidth: "90vw", maxHeight: "80vh", borderRadius: "8px", bgcolor: "#111", lineHeight: 0 }}>
+              {enlargedImage && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={enlargedImage}
+                  alt="Step image"
+                  style={{ display: "block", width: `${imgZoom * 100}%`, height: "auto", cursor: imgZoom > 1 ? "zoom-out" : "zoom-in" }}
+                  onClick={() => setImgZoom((z) => (z > 1 ? 1 : 1.5))}
+                />
+              )}
+            </Box>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ bgcolor: "rgba(0,0,0,0.6)", borderRadius: 2, px: 1.5, py: 0.5 }}>
+              <IconButton size="small" onClick={() => setImgZoom((z) => Math.max(1, z - 0.5))} disabled={imgZoom <= 1} sx={{ color: "white" }}>
+                <RemoveIcon fontSize="small" />
+              </IconButton>
+              <Typography variant="caption" sx={{ color: "white", minWidth: 36, textAlign: "center" }}>
+                {Math.round(imgZoom * 100)}%
+              </Typography>
+              <IconButton size="small" onClick={() => setImgZoom((z) => Math.min(1.5, z + 0.5))} disabled={imgZoom >= 1.5} sx={{ color: "white" }}>
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+          </Box>
+        </Modal>
+
+        {/* Back to top */}
+        {showBackToTop && (
+          <Fab
+            size="small"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            sx={{
+              position: "fixed", bottom: 72, right: 24, zIndex: 20,
+              bgcolor: colors.primary, color: "#ffffff",
+              "&:hover": { bgcolor: colors.darkBg },
+              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            }}
+          >
+            <KeyboardArrowUpIcon />
+          </Fab>
         )}
       </Box>
+    );
+  }
 
-      {/* Image zoom modal */}
-      <Modal open={!!enlargedImage} onClose={() => setEnlargedImage(null)}>
-        <Box
-          onClick={() => setEnlargedImage(null)}
-          sx={{
-            position: "fixed",
-            inset: 0,
-            bgcolor: "rgba(0,0,0,0.85)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            p: 2,
-            cursor: "zoom-out",
-          }}
-        >
-          {enlargedImage && (
-            <Box
-              component="img"
-              src={enlargedImage}
-              alt="Enlarged step image"
-              sx={{ maxWidth: "100%", maxHeight: "90vh", objectFit: "contain", borderRadius: 1 }}
-            />
-          )}
-        </Box>
-      </Modal>
-
-      {/* Back to top */}
-      {showBackToTop && (
-        <Fab
-          size="small"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          sx={{
-            position: "fixed",
-            bottom: 24,
-            right: 24,
-            bgcolor: colors.primary,
-            color: "#fff",
-            "&:hover": { bgcolor: "#326b64" },
-          }}
-        >
-          <KeyboardArrowUpIcon />
-        </Fab>
-      )}
-
-      <Footer year={new Date().getFullYear()} isAdmin={false} />
-    </Box>
-  );
+  return null;
 }

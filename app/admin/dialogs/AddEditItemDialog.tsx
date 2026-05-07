@@ -55,9 +55,15 @@ export default function AddEditItemDialog({
   const [cropOpen, setCropOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const originalThumbnailRef = useRef("");
+  const prevOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      prevOpenRef.current = false;
+      return;
+    }
+    if (prevOpenRef.current) return;
+    prevOpenRef.current = true;
     setName(initialData?.name ?? "");
     setDescription(initialData?.description ?? "");
     const url = initialData?.thumbnailUrl ?? "";

@@ -15,10 +15,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 async function getToken(): Promise<string> {
-  const email = process.env.ANALYTICS_CLIENT_EMAIL;
-  const key = process.env.ANALYTICS_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const email =
+    process.env.ANALYTICS_CLIENT_EMAIL ?? process.env.FIREBASE_CLIENT_EMAIL;
+  const rawKey =
+    process.env.ANALYTICS_PRIVATE_KEY ?? process.env.FIREBASE_PRIVATE_KEY;
+  const key = rawKey?.replace(/\\n/g, "\n");
 
-  if (!email || !key) throw new Error("ANALYTICS_CLIENT_EMAIL or ANALYTICS_PRIVATE_KEY not set");
+  if (!email || !key) throw new Error("No analytics credentials found — set ANALYTICS_CLIENT_EMAIL/KEY or FIREBASE_CLIENT_EMAIL/KEY");
 
   const jwt = new JWT({
     email,

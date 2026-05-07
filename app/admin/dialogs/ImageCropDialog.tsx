@@ -32,29 +32,37 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
   const [boxW, setBoxW] = useState(0);
   const [boxH, setBoxH] = useState(0);
   const [imgReady, setImgReady] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [dragStartX, setDragStartX] = useState(0);
-  const [dragStartY, setDragStartY] = useState(0);
+  const [loadKey, setLoadKey] = useState(0);
+  const [isDraggingState, setIsDraggingState] = useState(false);
+  const [applyError, setApplyError] = useState("");
+
+  // Refs for drag state — avoids stale closure in mousemove handlers
+  const isDraggingRef = useRef(false);
+  const isResizingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartYRef = useRef(0);
+
   const containerRef = useRef<HTMLDivElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
   const outputCanvasRef = useRef<HTMLCanvasElement>(null);
 
   function loadImageIntoState(src: string) {
     setImgReady(false);
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      setImgNaturalW(img.width);
-      setImgNaturalH(img.height);
-      setBoxX(0);
-      setBoxY(0);
-      setBoxW(img.width);
-      setBoxH(img.height);
-      setWorkingImage(src);
-    };
-    img.onerror = () => console.error("ImageCropDialog: failed to load image");
-    img.src = src;
+    setApplyError("");
+    setWorkingImage(src);
+    setLoadKey((k) => k + 1);
+  }
+
+  function handleImgLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const el = e.currentTarget;
+    const w = el.naturalWidth || el.width;
+    const h = el.naturalHeight || el.height;
+    setImgNaturalW(w);
+    setImgNaturalH(h);
+    setBoxX(0);
+    setBoxY(0);
+    setBoxW(w);
+    setBoxH(h);
+    setImgReady(true);
   }
 
   useEffect(() => {
@@ -64,8 +72,10 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
     if (!open) {
       setImgReady(false);
       setWorkingImage("");
-      setIsDragging(false);
-      setIsResizing(false);
+      setApplyError("");
+      isDraggingRef.current = false;
+      isResizingRef.current = false;
+      setIsDraggingState(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, imageDataUrl]);
@@ -76,43 +86,54 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
 
   function handleMouseDown(e: React.MouseEvent, isHandle: boolean) {
     e.stopPropagation();
-    e.preventDefault();
-    if (isHandle) setIsResizing(true);
-    else setIsDragging(true);
-    setDragStartX(e.clientX);
-    setDragStartY(e.clientY);
+    if (isHandle) {
+      isResizingRef.current = true;
+    } else {
+      isDraggingRef.current = true;
+      setIsDraggingState(true);
+    }
+    dragStartXRef.current = e.clientX;
+    dragStartYRef.current = e.clientY;
   }
 
   function handleMouseMove(e: React.MouseEvent) {
-    if (!isDragging && !isResizing) return;
+    if (!isDraggingRef.current && !isResizingRef.current) return;
     if (!containerRef.current) return;
-    const imgEl = imgRef.current;
-    if (!imgEl) return;
+
+    const imgElements = containerRef.current.querySelectorAll("img");
+    if (!imgElements.length) return;
+    const imgEl = imgElements[0] as HTMLImageElement;
     const imgRect = imgEl.getBoundingClientRect();
     if (!imgRect.width || !imgRect.height) return;
+
     const scaleX = imgNaturalW / imgRect.width;
     const scaleY = imgNaturalH / imgRect.height;
-    const dx = (e.clientX - dragStartX) * scaleX;
-    const dy = (e.clientY - dragStartY) * scaleY;
+    const dx = (e.clientX - dragStartXRef.current) * scaleX;
+    const dy = (e.clientY - dragStartYRef.current) * scaleY;
 
-    if (isDragging) {
+    if (isDraggingRef.current) {
       setBoxX((x) => Math.max(0, Math.min(x + dx, Math.max(0, imgNaturalW - boxW))));
       setBoxY((y) => Math.max(0, Math.min(y + dy, Math.max(0, imgNaturalH - boxH))));
     } else {
-      setBoxW((w) => { const nw = w + dx; return nw > 50 && boxX + nw <= imgNaturalW ? nw : w; });
-      setBoxH((h) => { const nh = h + dy; return nh > 50 && boxY + nh <= imgNaturalH ? nh : h; });
+      const maxW = imgNaturalW - boxX;
+      const maxH = imgNaturalH - boxY;
+      setBoxW((w) => { const nw = w + dx; return nw > 50 && nw <= maxW ? nw : w; });
+      setBoxH((h) => { const nh = h + dy; return nh > 50 && nh <= maxH ? nh : h; });
     }
-    setDragStartX(e.clientX);
-    setDragStartY(e.clientY);
+
+    dragStartXRef.current = e.clientX;
+    dragStartYRef.current = e.clientY;
   }
 
   function handleMouseUp() {
-    setIsDragging(false);
-    setIsResizing(false);
+    isDraggingRef.current = false;
+    isResizingRef.current = false;
+    setIsDraggingState(false);
   }
 
   function handleApply() {
     if (!workingImage || !outputCanvasRef.current || !boxW || !boxH) return;
+    setApplyError("");
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -124,17 +145,43 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(img, boxX, boxY, boxW, boxH, 0, 0, outputW, outputH);
-      onApply(canvas.toDataURL("image/jpeg", 0.9));
-      onClose();
+      try {
+        onApply(canvas.toDataURL("image/jpeg", 0.9));
+        onClose();
+      } catch {
+        setApplyError("Cannot crop this image due to browser security restrictions. Please re-upload the image first, then crop.");
+      }
     };
-    img.onerror = () => onClose();
+    img.onerror = () => {
+      // CORS blocked — retry without crossOrigin so the image loads for canvas
+      const img2 = new Image();
+      img2.onload = () => {
+        const canvas = outputCanvasRef.current!;
+        const outputW = 400;
+        const outputH = Math.max(1, Math.round(outputW * (boxH / boxW)));
+        canvas.width = outputW;
+        canvas.height = outputH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img2, boxX, boxY, boxW, boxH, 0, 0, outputW, outputH);
+        try {
+          onApply(canvas.toDataURL("image/jpeg", 0.9));
+          onClose();
+        } catch {
+          setApplyError("Cannot crop this image due to browser security restrictions. Please re-upload the image first, then crop.");
+        }
+      };
+      img2.onerror = () => setApplyError("Failed to load image for cropping.");
+      img2.src = workingImage;
+    };
     img.src = workingImage;
   }
 
   function getCropBoxPixels() {
     if (!containerRef.current || !imgNaturalW || !imgNaturalH || !imgReady) return null;
-    const imgEl = imgRef.current;
-    if (!imgEl) return null;
+    const imgElements = containerRef.current.querySelectorAll("img");
+    if (!imgElements.length) return null;
+    const imgEl = imgElements[0] as HTMLImageElement;
     const containerRect = containerRef.current.getBoundingClientRect();
     const imgRect = imgEl.getBoundingClientRect();
     if (!imgRect.width || !imgRect.height) return null;
@@ -182,15 +229,15 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
                   justifyContent: "center",
                   bgcolor: "#FDF9F1",
                   userSelect: "none",
-                  cursor: isDragging ? "grabbing" : "default",
+                  cursor: isDraggingState ? "grabbing" : "default",
                 }}
               >
                 <Box
                   component="img"
-                  ref={imgRef}
+                  key={loadKey}
                   src={workingImage}
                   alt="Crop preview"
-                  onLoad={() => setImgReady(true)}
+                  onLoad={handleImgLoad}
                   sx={{ maxWidth: "100%", maxHeight: "100%", display: "block" }}
                 />
 
@@ -204,7 +251,7 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
                         width: `${px.w}px`, height: `${px.h}px`,
                         border: "2px solid #3D8078",
                         bgcolor: "rgba(61,128,120,0.1)",
-                        cursor: isDragging ? "grabbing" : "grab",
+                        cursor: isDraggingState ? "grabbing" : "grab",
                         boxSizing: "border-box",
                       }}
                     >
@@ -230,6 +277,11 @@ export default function ImageCropDialog({ open, onClose, imageDataUrl, originalD
           <Typography variant="body2" color="text.secondary">
             Drag the crop box to reposition it. Drag the bottom-right handle to resize freely.
           </Typography>
+          {applyError && (
+            <Typography variant="caption" color="error" display="block" sx={{ mt: 1 }}>
+              {applyError}
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions sx={{ borderTop: "1px solid #E5E1D7", pt: 2, pb: 2, px: 3, bgcolor: "#FDF9F1", justifyContent: "space-between" }}>
           <Tooltip title="Reset to original">

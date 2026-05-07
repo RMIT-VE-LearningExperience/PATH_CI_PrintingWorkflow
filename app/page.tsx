@@ -655,8 +655,7 @@ export default function HomePage() {
           display: "flex",
           flexDirection: "column",
           bgcolor: colors.lightBg,
-          py: { xs: 4, sm: 5, md: 7 },
-          pt: previewPt,
+          pt: previewPt ?? { xs: 4, sm: 5, md: 7 },
           pb: 0,
         }}
       >

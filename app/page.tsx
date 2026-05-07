@@ -657,6 +657,7 @@ export default function HomePage() {
           bgcolor: colors.lightBg,
           py: { xs: 4, sm: 5, md: 7 },
           pt: previewPt,
+          pb: 0,
         }}
       >
         {previewBanner}

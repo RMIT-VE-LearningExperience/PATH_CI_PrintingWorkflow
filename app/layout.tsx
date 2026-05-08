@@ -5,8 +5,8 @@ import Providers from "./providers";
 import GoogleAnalytics from "./components/GoogleAnalytics";
 
 export const metadata: Metadata = {
-  title: "PrinterApp",
-  description: "Printing App",
+  title: "Printer Workflows",
+  description: "Printing Workflows for Photography",
 };
 
 type RootLayoutProps = {

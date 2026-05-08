@@ -10,25 +10,29 @@ env:
       - BUILD
       - RUNTIME
   - variable: FIREBASE_PROJECT_ID
-    value: path-ci-printingworkflows
+    value: printer-app-531a8
   - variable: FIREBASE_CLIENT_EMAIL
-    value: firebase-adminsdk-fbsvc@path-ci-printingworkflows.iam.gserviceaccount.com
+    value: firebase-adminsdk-fbsvc@printer-app-531a8.iam.gserviceaccount.com
   - variable: FIREBASE_STORAGE_BUCKET
-    value: path-ci-printingworkflows.firebasestorage.app
+    value: printer-app-531a8.firebasestorage.app
   - variable: FIREBASE_DATABASE_ID
-    value: "(default)"
-  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: AIzaSyC8yehio_BcwaT7LXgIvwDu_5WYn7HGTUI
-  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    value: path-ci-printingworkflows.firebaseapp.com
-  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: path-ci-printingworkflows
+  - variable: FIREBASE_ADMIN_DATABASE_ID
+    value: path-ci-printingworkflows
+  - variable: STORAGE_PATH_PREFIX
+    value: path-ci-printingworkflows
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyBfRCD35umbBjfnMLlPBRFbW60UDPpbrBw
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: printer-app-531a8.firebaseapp.com
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: printer-app-531a8
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-    value: path-ci-printingworkflows.firebasestorage.app
+    value: printer-app-531a8.firebasestorage.app
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    value: "828650758378"
+    value: "35180397485"
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    value: 1:828650758378:web:0dadd87fdeb76810ec7793
+    value: 1:35180397485:web:ccf38a99061538652a5724
   - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
     value: G-R7BKPQPVQQ
     availability:

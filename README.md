@@ -1,4 +1,4 @@
-# PrinterApp
+# PATH-CI Printing Workflows
 
 Minimal Next.js (App Router + TypeScript) app at repository root, configured for Firebase App Hosting.
 

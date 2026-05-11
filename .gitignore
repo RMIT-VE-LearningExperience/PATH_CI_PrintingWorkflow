@@ -11,3 +11,6 @@ scripts/admins.json
 documentation/
 *.bak
 *.bak-*
+
+# Service account keys
+analytics_api/

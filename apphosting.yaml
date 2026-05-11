@@ -41,7 +41,7 @@ env:
   - variable: GA_PROPERTY_ID
     value: "536345524"
   - variable: ANALYTICS_CLIENT_EMAIL
-    value: ga4-analytics-reader@path-ci-printingworkflows.iam.gserviceaccount.com
+    value: analytics@printer-app-531a8.iam.gserviceaccount.com
   - variable: ANALYTICS_PRIVATE_KEY
     secret: ANALYTICS_PRIVATE_KEY
     availability:

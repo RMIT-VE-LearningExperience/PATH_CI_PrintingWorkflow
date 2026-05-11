@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "../../../lib/firebase-admin";
+import { auth, adminDb } from "../../../lib/firebase-admin";
 import { createPreviewToken } from "../../../lib/tutorial-store";
 
 export async function POST(req: NextRequest) {
@@ -10,8 +10,11 @@ export async function POST(req: NextRequest) {
   }
   try {
     const decoded = await auth.verifyIdToken(bearerToken);
-    const role = decoded.role as string | undefined;
-    if (role !== "admin") {
+    if ((decoded.role as string | undefined) !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const adminDoc = await adminDb.collection("admins").doc(decoded.uid).get();
+    if (!adminDoc.exists || !(adminDoc.data() as { active?: boolean })?.active) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   } catch {

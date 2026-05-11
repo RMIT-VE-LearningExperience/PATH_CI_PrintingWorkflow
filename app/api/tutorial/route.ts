@@ -141,6 +141,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       const adminDoc = await adminDb.collection("admins").doc(decoded.uid).get();
+      if (!adminDoc.exists || !(adminDoc.data() as { active?: boolean })?.active) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       const adminName = (adminDoc.data() as { name?: string } | undefined)?.name;
       modifiedBy = adminName || decoded.email || decoded.uid || "system";
     } catch {

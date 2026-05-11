@@ -46,6 +46,7 @@ export default function Footer({ year, isAdmin }: { year: number; isAdmin: boole
         fontWeight: 500,
         letterSpacing: "0.3px",
         boxSizing: "border-box",
+        marginTop: "48px",
       }}
     >
       {content(year)}

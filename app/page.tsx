@@ -105,6 +105,7 @@ function StepImage({ src, alt, onClick }: { src: string; alt: string; onClick: (
         animation="wave"
         sx={{
           position: "absolute", inset: 0, width: "100%", height: "100%",
+          bgcolor: "#D9D5CE",
           opacity: loaded ? 0 : 1,
           transition: "opacity 0.3s ease",
         }}
@@ -171,6 +172,7 @@ function ItemCard({
               animation="wave"
               sx={{
                 position: "absolute", inset: 0, width: "100%", height: "100%",
+                bgcolor: "#D9D5CE",
                 opacity: imgLoaded ? 0 : 1,
                 transition: "opacity 0.3s ease",
               }}

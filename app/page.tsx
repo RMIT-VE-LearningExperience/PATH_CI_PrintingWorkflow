@@ -12,6 +12,7 @@ import {
   Grid,
   IconButton,
   Modal,
+  Skeleton,
   Stack,
   Tooltip,
   Typography,
@@ -85,6 +86,35 @@ function NavIconButton({ onClick, children }: { onClick: () => void; children: R
   );
 }
 
+// ── Step image with loading ghost ─────────────────────────────────────
+
+function StepImage({ src, alt, onClick }: { src: string; alt: string; onClick: () => void }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        position: "relative", width: "100%", paddingBottom: "60%",
+        overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
+        cursor: "pointer", transition: "all 0.2s ease",
+        "&:hover": { boxShadow: colors.cardShadowHover },
+      }}
+    >
+      {!loaded && (
+        <Skeleton variant="rectangular" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      )}
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        style={{ objectFit: "contain", opacity: loaded ? 1 : 0, transition: "opacity 0.3s ease" }}
+        sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
+        onLoad={() => setLoaded(true)}
+      />
+    </Box>
+  );
+}
+
 // ── Item card ─────────────────────────────────────────────────────────
 
 function ItemCard({
@@ -101,6 +131,7 @@ function ItemCard({
   onClick: () => void;
 }) {
   const isUnpublished = isPreview && !isPublished;
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
     <Card
@@ -128,13 +159,19 @@ function ItemCard({
         }}
       >
         {item.thumbnailUrl ? (
-          <Image
-            src={item.thumbnailUrl}
-            alt={item.name}
-            fill
-            style={{ objectFit: "cover" }}
-            sizes="(max-width: 600px) 100vw, (max-width: 960px) 50vw, 33vw"
-          />
+          <>
+            {!imgLoaded && (
+              <Skeleton variant="rectangular" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+            )}
+            <Image
+              src={item.thumbnailUrl}
+              alt={item.name}
+              fill
+              style={{ objectFit: "cover", opacity: imgLoaded ? 1 : 0, transition: "opacity 0.3s ease" }}
+              sizes="(max-width: 600px) 100vw, (max-width: 960px) 50vw, 33vw"
+              onLoad={() => setImgLoaded(true)}
+            />
+          </>
         ) : (
           <Box
             sx={{
@@ -887,23 +924,11 @@ export default function HomePage() {
                           </Box>
                         )
                       ) : step.imageUrl ? (
-                        <Box
+                        <StepImage
+                          src={step.imageUrl}
+                          alt={step.title}
                           onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
-                          sx={{
-                            position: "relative", width: "100%", paddingBottom: "60%",
-                            overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
-                            cursor: "pointer", transition: "all 0.2s ease",
-                            "&:hover": { boxShadow: colors.cardShadowHover },
-                          }}
-                        >
-                          <Image
-                            src={step.imageUrl}
-                            alt={step.title}
-                            fill
-                            style={{ objectFit: "contain" }}
-                            sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
-                          />
-                        </Box>
+                        />
                       ) : null}
                     </CardContent>
                   </Card>

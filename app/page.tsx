@@ -100,9 +100,15 @@ function StepImage({ src, alt, onClick }: { src: string; alt: string; onClick: (
         "&:hover": { boxShadow: colors.cardShadowHover },
       }}
     >
-      {!loaded && (
-        <Skeleton variant="rectangular" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-      )}
+      <Skeleton
+        variant="rectangular"
+        animation="wave"
+        sx={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          opacity: loaded ? 0 : 1,
+          transition: "opacity 0.3s ease",
+        }}
+      />
       <Image
         src={src}
         alt={alt}
@@ -160,9 +166,15 @@ function ItemCard({
       >
         {item.thumbnailUrl ? (
           <>
-            {!imgLoaded && (
-              <Skeleton variant="rectangular" sx={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
-            )}
+            <Skeleton
+              variant="rectangular"
+              animation="wave"
+              sx={{
+                position: "absolute", inset: 0, width: "100%", height: "100%",
+                opacity: imgLoaded ? 0 : 1,
+                transition: "opacity 0.3s ease",
+              }}
+            />
             <Image
               src={item.thumbnailUrl}
               alt={item.name}

@@ -245,11 +245,11 @@ export default function Sidebar({
           )}
         </Stack>
 
-        {features.fullItemListView && sidebarLevels.length > 0 && (
+        {features.fullItemListView && sidebarLevels.some((l) => l.type !== "type2") && (
           <>
             <Divider sx={{ borderColor: "rgba(255,255,255,0.15)", width: "80%", my: 1.5 }} />
             <Stack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
-              {sidebarLevels.map((level) => (
+              {sidebarLevels.filter((l) => l.type !== "type2").map((level) => (
                 <Tooltip
                   key={level.id}
                   title={level.type === "type1" ? `Full ${level.name} List` : `${level.name} Management`}
@@ -534,11 +534,11 @@ export default function Sidebar({
         )}
       </Box>
 
-      {features.fullItemListView && sidebarLevels.length > 0 && (
+      {features.fullItemListView && sidebarLevels.some((l) => l.type !== "type2") && (
         <>
           <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.15)" }} />
           <Stack spacing={1}>
-            {sidebarLevels.map((level) => {
+            {sidebarLevels.filter((l) => l.type !== "type2").map((level) => {
               const active = globalListLevelId === level.id;
               const label = level.type === "type1" ? `Full ${level.name} List` : `${level.name} Management`;
               return (

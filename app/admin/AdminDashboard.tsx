@@ -250,8 +250,19 @@ export default function AdminDashboard() {
   const [headingSaving, setHeadingSaving] = useState<string | null>(null);
   const [headingSaved, setHeadingSaved] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [sortByName, setSortByName] = useState(false);
+  const [sortColumn, setSortColumn] = useState<"name" | "lastEdited" | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
+
+  function handleSortClick(col: "name" | "lastEdited") {
+    if (sortColumn === col) {
+      if (sortAsc) { setSortAsc(false); }
+      else { setSortColumn(null); setSortAsc(true); }
+    } else {
+      setSortColumn(col);
+      setSortAsc(true);
+    }
+  }
 
   // Deleted items filter
   const [deletedNameFilter, setDeletedNameFilter] = useState("");
@@ -316,8 +327,20 @@ export default function AdminDashboard() {
             const linked = new Set(rels.map((r) => r.childItemId));
             return all.filter((i) => linked.has(i.id));
           })();
-    return sortByName ? [...source].sort((a, b) => a.name.localeCompare(b.name)) : source;
-  }, [state, currentLevel, navStack, parentLevel, parentKey, sortByName]);
+    if (sortColumn === "name") {
+      const s = [...source].sort((a, b) => a.name.localeCompare(b.name));
+      return sortAsc ? s : s.reverse();
+    }
+    if (sortColumn === "lastEdited") {
+      const s = [...source].sort((a, b) => {
+        const aT = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+        const bT = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        return aT - bT;
+      });
+      return sortAsc ? s : s.reverse();
+    }
+    return source;
+  }, [state, currentLevel, navStack, parentLevel, parentKey, sortColumn, sortAsc]);
 
   const currentSteps = useMemo((): Step[] => {
     if (!state || !atSteps || !parentEntry) return [];
@@ -327,8 +350,20 @@ export default function AdminDashboard() {
   const globalListItems = useMemo((): Item[] => {
     if (!state || !globalListLevelId) return [];
     const items = state.items[globalListLevelId] ?? [];
-    return sortByName ? [...items].sort((a, b) => a.name.localeCompare(b.name)) : items;
-  }, [state, globalListLevelId, sortByName]);
+    if (sortColumn === "name") {
+      const s = [...items].sort((a, b) => a.name.localeCompare(b.name));
+      return sortAsc ? s : s.reverse();
+    }
+    if (sortColumn === "lastEdited") {
+      const s = [...items].sort((a, b) => {
+        const aT = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+        const bT = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        return aT - bT;
+      });
+      return sortAsc ? s : s.reverse();
+    }
+    return items;
+  }, [state, globalListLevelId, sortColumn, sortAsc]);
 
   // For each item in the global list, resolve its parent/grandparent context.
   // parents  = immediate parents (e.g. printers for papers, papers for colours)
@@ -444,7 +479,7 @@ export default function AdminDashboard() {
     setNavStack((prev) => [...prev, { levelId, itemId: item.id, itemName: item.name }]);
     setGlobalListLevelId(null);
     setShowDeleted(false);
-    setSortByName(false);
+    setSortColumn(null); setSortAsc(true);
     setExpandedStepId(null);
   }
 
@@ -452,7 +487,7 @@ export default function AdminDashboard() {
     setNavStack((prev) => prev.slice(0, depth));
     setGlobalListLevelId(null);
     setShowDeleted(false);
-    setSortByName(false);
+    setSortColumn(null); setSortAsc(true);
     setExpandedStepId(null);
   }
 
@@ -460,14 +495,14 @@ export default function AdminDashboard() {
     setNavStack([]);
     setGlobalListLevelId(null);
     setShowDeleted(false);
-    setSortByName(false);
+    setSortColumn(null); setSortAsc(true);
     setExpandedStepId(null);
   }
 
   function handleGlobalList(levelId: string) {
     setGlobalListLevelId(levelId);
     setShowDeleted(false);
-    setSortByName(false);
+    setSortColumn(null); setSortAsc(true);
     setGlobalListNameFilter("");
     setGlobalListContextFilter("");
   }
@@ -679,7 +714,7 @@ export default function AdminDashboard() {
     });
     itemUrlObj.searchParams.set(`l${levelIndex + 1}`, item.id);
     const itemUrl = itemUrlObj.toString();
-    const showShareTools = !opts.isGlobalList && (features.copyLink || features.qrCode || features.canvasEmbed);
+    const showShareTools = !opts.isGlobalList && levelIndex === 0 && (features.copyLink || features.qrCode || features.canvasEmbed);
 
     const parentInfo = opts.isGlobalList ? (globalListParentInfo[item.id] ?? { parents: [], grandparents: [] }) : null;
 
@@ -803,8 +838,8 @@ export default function AdminDashboard() {
   function renderItemTable(items: Item[], levelId: string, opts: { isGlobalList?: boolean } = {}) {
     const level = activeLevels.find((l) => l.id === levelId);
     const features = state!.appSettings.features;
-    const showShareTools = !opts.isGlobalList && (features.copyLink || features.qrCode || features.canvasEmbed);
     const levelIndex = activeLevels.findIndex((l) => l.id === levelId);
+    const showShareTools = !opts.isGlobalList && levelIndex === 0 && (features.copyLink || features.qrCode || features.canvasEmbed);
     const showParentCols = opts.isGlobalList && levelIndex >= 1;
     // For level 2 (papers): 1 parent col (Printer = "Active In")
     // For level 3 (colours): 2 parent cols (Paper, then Printer)
@@ -817,9 +852,9 @@ export default function AdminDashboard() {
             <TableRow sx={{ bgcolor: "#FDF9F1", borderBottom: "2px solid #E5E1D7" }}>
               <TableCell
                 sx={{ fontWeight: 700, cursor: "pointer", userSelect: "none", color: "#45443F", fontSize: "0.95rem", padding: "16px" }}
-                onClick={() => setSortByName(!sortByName)}
+                onClick={() => handleSortClick("name")}
               >
-                {level?.singularName ?? "Name"} {sortByName ? "↑" : "↓"}
+                {level?.singularName ?? "Name"}{sortColumn === "name" ? (sortAsc ? " ↑" : " ↓") : ""}
               </TableCell>
               {showParentCols && levelIndex === 2 && (
                 <TableCell sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>
@@ -832,7 +867,13 @@ export default function AdminDashboard() {
                 </TableCell>
               )}
               <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px", width: showShareTools ? 196 : 52 }} />
-              <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Last Edited</TableCell>
+              <TableCell
+                align="center"
+                sx={{ fontWeight: 700, cursor: "pointer", userSelect: "none", color: "#45443F", fontSize: "0.95rem", padding: "16px" }}
+                onClick={() => handleSortClick("lastEdited")}
+              >
+                Last Edited{sortColumn === "lastEdited" ? (sortAsc ? " ↑" : " ↓") : ""}
+              </TableCell>
               {!opts.isGlobalList && (
                 <TableCell align="center" sx={{ fontWeight: 700, color: "#45443F", fontSize: "0.95rem", padding: "16px" }}>Status</TableCell>
               )}
@@ -1423,7 +1464,7 @@ export default function AdminDashboard() {
           setNavStack([{ levelId: activeLevels[0]!.id, itemId: item.id, itemName: item.name }]);
           setGlobalListLevelId(null);
           setShowDeleted(false);
-          setSortByName(false);
+          setSortColumn(null); setSortAsc(true);
           setExpandedStepId(null);
         }}
         onLevel1ItemMenu={(item, anchorEl) =>

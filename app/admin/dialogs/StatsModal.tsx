@@ -12,7 +12,8 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { TutorialState } from "../../../lib/tutorial-store";
 
 type AnalyticsData = {
   summary: {
@@ -30,6 +31,7 @@ type Props = {
   open: boolean;
   onClose: () => void;
   getAuthToken: () => Promise<string>;
+  state: TutorialState | null;
 };
 
 function DailyViewsChart({ rows }: { rows: { date: string; views: number }[] }) {
@@ -67,7 +69,40 @@ function DailyViewsChart({ rows }: { rows: { date: string; views: number }[] }) 
   );
 }
 
-export default function StatsModal({ open, onClose, getAuthToken }: Props) {
+function ViewsTable({ rows }: { rows: { label: string; sublabel?: string; views: number }[] }) {
+  if (rows.length === 0) {
+    return (
+      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>
+        No data yet — will appear once users navigate to these pages.
+      </Typography>
+    );
+  }
+  return (
+    <Stack spacing={0}>
+      {rows.map(({ label, sublabel, views }, i) => (
+        <Stack
+          key={i}
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ py: 0.75, borderBottom: "1px solid", borderColor: "divider" }}
+        >
+          <Box>
+            <Typography variant="body2">{label}</Typography>
+            {sublabel && (
+              <Typography variant="caption" color="text.secondary">{sublabel}</Typography>
+            )}
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ ml: 2, flexShrink: 0 }}>
+            {views.toLocaleString()} views
+          </Typography>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+export default function StatsModal({ open, onClose, getAuthToken, state }: Props) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -111,6 +146,55 @@ export default function StatsModal({ open, onClose, getAuthToken }: Props) {
       controller.abort();
     };
   }, [open, getAuthToken]);
+
+  // ── Derive slug→name maps from Firestore state ────────────────────────
+
+  const { printerBySlug, paperBySlug, level0Name, level1Name } = useMemo(() => {
+    const levels = (state?.hierarchy.levels ?? [])
+      .filter((l) => l.enabled)
+      .sort((a, b) => a.order - b.order);
+    const level0 = levels[0];
+    const level1 = levels[1];
+    const printerBySlug: Record<string, string> = Object.fromEntries(
+      (state?.items[level0?.id ?? ""] ?? []).map((i) => [i.slug, i.name]),
+    );
+    const paperBySlug: Record<string, string> = Object.fromEntries(
+      (state?.items[level1?.id ?? ""] ?? []).map((i) => [i.slug, i.name]),
+    );
+    return {
+      printerBySlug,
+      paperBySlug,
+      level0Name: level0?.name ?? "Printers",
+      level1Name: level1?.name ?? "Papers",
+    };
+  }, [state]);
+
+  // ── Parse topPages into per-level rows ────────────────────────────────
+
+  const { printerRows, paperRows } = useMemo(() => {
+    const printerRows: { label: string; views: number }[] = [];
+    const paperRows: { label: string; sublabel: string; views: number }[] = [];
+
+    for (const { path, views } of data?.topPages ?? []) {
+      const parts = path.split("/").filter(Boolean);
+      if (parts.length === 1) {
+        const name = printerBySlug[parts[0]];
+        if (name) printerRows.push({ label: name, views });
+      } else if (parts.length === 2) {
+        const paperName = paperBySlug[parts[1]];
+        if (paperName) {
+          const printerName = printerBySlug[parts[0]] ?? parts[0];
+          paperRows.push({ label: paperName, sublabel: `Under ${printerName}`, views });
+        }
+      }
+    }
+
+    // Sort by views descending
+    printerRows.sort((a, b) => b.views - a.views);
+    paperRows.sort((a, b) => b.views - a.views);
+
+    return { printerRows, paperRows };
+  }, [data, printerBySlug, paperBySlug]);
 
   function fmtDuration(seconds: number) {
     const m = Math.floor(seconds / 60);
@@ -180,7 +264,27 @@ export default function StatsModal({ open, onClose, getAuthToken }: Props) {
 
             <Divider />
 
-            {/* Top pages */}
+            {/* Printers breakdown */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                {level0Name} — Page Views (last 30 days)
+              </Typography>
+              <ViewsTable rows={printerRows} />
+            </Box>
+
+            <Divider />
+
+            {/* Papers breakdown */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                {level1Name} — Page Views (last 30 days)
+              </Typography>
+              <ViewsTable rows={paperRows} />
+            </Box>
+
+            <Divider />
+
+            {/* Top pages (raw paths) */}
             <Box>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 Top Pages (last 30 days)

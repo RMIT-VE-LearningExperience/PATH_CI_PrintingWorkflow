@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
         metrics: [{ name: "screenPageViews" }],
         orderBys: [{ metric: { metricName: "screenPageViews" }, desc: true }],
         dimensionFilter: userFacingFilter,
-        limit: 10,
+        limit: 50,
       }),
       runReport(token, {
         dateRanges: [{ startDate: "13daysAgo", endDate: "today" }],

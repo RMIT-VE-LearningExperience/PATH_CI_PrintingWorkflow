@@ -14,6 +14,15 @@ export function trackEvent(name: string, params?: Record<string, string | number
   }
 }
 
+export function trackPageView(path: string) {
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    window.gtag("event", "page_view", {
+      page_path: path,
+      page_location: window.location.origin + path,
+    });
+  }
+}
+
 export default function GoogleAnalytics() {
   if (!GA_ID) return null;
 

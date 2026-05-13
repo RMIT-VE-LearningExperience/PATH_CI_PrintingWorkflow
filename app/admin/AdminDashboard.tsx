@@ -708,12 +708,13 @@ export default function AdminDashboard() {
     const published = getItemPublished(item);
     const features = state!.appSettings.features;
     const levelIndex = activeLevels.findIndex((l) => l.id === levelId);
-    const itemUrlObj = new URL("/", window.location.origin);
-    navStack.slice(0, levelIndex).forEach((entry, i) => {
-      itemUrlObj.searchParams.set(`l${i + 1}`, entry.itemId);
+    const pathParts: string[] = [];
+    navStack.slice(0, levelIndex).forEach((entry) => {
+      const slug = (state!.items[entry.levelId] ?? []).find((i) => i.id === entry.itemId)?.slug;
+      pathParts.push(slug ?? entry.itemId);
     });
-    itemUrlObj.searchParams.set(`l${levelIndex + 1}`, item.id);
-    const itemUrl = itemUrlObj.toString();
+    pathParts.push(item.slug ?? item.id);
+    const itemUrl = `${window.location.origin}/${pathParts.join("/")}`;
     const showShareTools = !opts.isGlobalList && levelIndex === 0 && (features.copyLink || features.qrCode || features.canvasEmbed);
 
     const parentInfo = opts.isGlobalList ? (globalListParentInfo[item.id] ?? { parents: [], grandparents: [] }) : null;
@@ -1617,7 +1618,7 @@ export default function AdminDashboard() {
         <EmbedDialog open onClose={() => setEmbedTarget(null)} url={embedTarget.url} itemName={embedTarget.itemName} />
       )}
 
-      <StatsModal open={statsOpen} onClose={() => setStatsOpen(false)} getAuthToken={getAuthToken} />
+      <StatsModal open={statsOpen} onClose={() => setStatsOpen(false)} getAuthToken={getAuthToken} state={state} />
 
       {renderMenu()}
     </Box>

@@ -264,22 +264,25 @@ export default function StatsModal({ open, onClose, getAuthToken, state }: Props
 
             <Divider />
 
-            {/* Printers breakdown */}
+            {/* Printers + Papers side by side */}
             <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                {level0Name} — Page Views (last 30 days)
+              <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+                Page Views (last 30 days)
               </Typography>
-              <ViewsTable rows={printerRows} />
-            </Box>
-
-            <Divider />
-
-            {/* Papers breakdown */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                {level1Name} — Page Views (last 30 days)
-              </Typography>
-              <ViewsTable rows={paperRows} />
+              <Stack direction="row" spacing={0} divider={<Divider orientation="vertical" flexItem />}>
+                <Box sx={{ flex: 1, pr: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {level0Name}
+                  </Typography>
+                  <ViewsTable rows={printerRows} />
+                </Box>
+                <Box sx={{ flex: 1, pl: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {level1Name}
+                  </Typography>
+                  <ViewsTable rows={paperRows} />
+                </Box>
+              </Stack>
             </Box>
 
             <Divider />

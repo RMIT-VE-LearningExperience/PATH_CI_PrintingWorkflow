@@ -263,7 +263,7 @@ function ItemCard({
 type NavEntry = { levelId: string; itemId: string };
 
 // Used inside loadData before state is stored in useState.
-function resolvePathFromIds(selections: NavEntry[], st: TutorialState, levels: Level[]): string {
+function resolvePathFromIds(selections: NavEntry[], st: TutorialState): string {
   if (selections.length === 0) return "/";
   const parts = selections.map((entry) => {
     const items = st.items[entry.levelId] ?? [];
@@ -429,7 +429,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           }
           if (selections.length > 0) {
             setSelectionStack(selections);
-            window.history.replaceState({}, "", resolvePathFromIds(selections, newState, levels));
+            window.history.replaceState({}, "", resolvePathFromIds(selections, newState));
           }
           return;
         }
@@ -455,7 +455,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                 window.history.replaceState(
                   {},
                   "",
-                  resolvePathFromIds(parsed.selections, newState, levels),
+                  resolvePathFromIds(parsed.selections, newState),
                 );
               }
             }

@@ -37,8 +37,8 @@ type Props = {
 function DailyViewsChart({ rows }: { rows: { date: string; views: number }[] }) {
   const max = Math.max(...rows.map((r) => r.views), 1);
   const chartH = 120;
-  const barW = 14;
-  const gap = 4;
+  const barW = 28;
+  const gap = 6;
   const chartW = rows.length * (barW + gap);
 
   return (

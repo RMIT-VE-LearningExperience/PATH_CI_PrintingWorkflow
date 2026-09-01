@@ -48,6 +48,34 @@ const colors = {
   cardShadowHover: "0 8px 16px rgba(69, 68, 63, 0.12)",
 };
 
+// Visually hides content while keeping it in the accessibility tree.
+const srOnlySx = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
+
+// Applied to the <main> landmark, which is given programmatic focus after
+// every in-app navigation (see the focus/title-management effect below) —
+// including navigations triggered by a plain mouse click. :focus-visible
+// (not :focus) is what keeps the ring hidden for that mouse-click case: the
+// browser's own heuristic tracks whether the last input was pointer or
+// keyboard and only matches :focus-visible for the latter, so a keyboard
+// activation (Tab, then Enter/Space) shows the ring and a mouse click doesn't.
+const mainFocusSx = {
+  outline: "none",
+  "&:focus-visible": {
+    outline: `3px solid ${colors.primary}`,
+    outlineOffset: "-2px",
+  },
+} as const;
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function getVideoEmbedUrl(url: string): string | null {
@@ -68,12 +96,57 @@ function sanitizeHtml(html: string): string {
     });
 }
 
+// ── Skip link ─────────────────────────────────────────────────────────
+// Hidden until focused, so keyboard users can jump straight past the
+// preview banner / top nav to the main content of the current view.
+
+function SkipLink() {
+  return (
+    <Box
+      component="a"
+      href="#main-content"
+      sx={{
+        ...srOnlySx,
+        "&:focus": {
+          position: "fixed",
+          top: 8,
+          left: 8,
+          width: "auto",
+          height: "auto",
+          margin: 0,
+          padding: "8px 16px",
+          overflow: "visible",
+          clip: "auto",
+          whiteSpace: "normal",
+          zIndex: 2000,
+          bgcolor: colors.darkBg,
+          color: "#fff",
+          borderRadius: 1,
+          fontWeight: 700,
+          textDecoration: "none",
+        },
+      }}
+    >
+      Skip to content
+    </Box>
+  );
+}
+
 // ── Nav icon button ───────────────────────────────────────────────────
 
-function NavIconButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+function NavIconButton({
+  onClick,
+  ariaLabel,
+  children,
+}: {
+  onClick: () => void;
+  ariaLabel: string;
+  children: React.ReactNode;
+}) {
   return (
     <IconButton
       onClick={onClick}
+      aria-label={ariaLabel}
       sx={{
         color: colors.text,
         border: `1px solid ${colors.lightBorder}`,
@@ -93,12 +166,18 @@ function StepImage({ src, alt, onClick }: { src: string; alt: string; onClick: (
   const [loaded, setLoaded] = useState(false);
   return (
     <Box
+      component="button"
+      type="button"
       onClick={onClick}
+      aria-label={`Enlarge image${alt ? `: ${alt}` : ""}`}
       sx={{
         position: "relative", width: "100%", paddingBottom: "60%",
         overflow: "hidden", borderRadius: 1, bgcolor: "#FDF9F1",
+        display: "block", margin: 0, border: "none", background: "none",
+        font: "inherit", appearance: "none",
         cursor: "pointer", transition: "all 0.2s ease",
         "&:hover": { boxShadow: colors.cardShadowHover },
+        "&:focus-visible": { outline: `3px solid ${colors.primary}`, outlineOffset: 2 },
       }}
     >
       <Skeleton
@@ -113,7 +192,7 @@ function StepImage({ src, alt, onClick }: { src: string; alt: string; onClick: (
       />
       <Image
         src={src}
-        alt={alt}
+        alt=""
         fill
         style={{ objectFit: "contain", opacity: loaded ? 1 : 0, transition: "opacity 0.3s ease" }}
         sizes="(max-width: 600px) 100vw, (max-width: 960px) 90vw, 800px"
@@ -140,12 +219,12 @@ function ItemCard({
 }) {
   const isUnpublished = isPreview && !isPublished;
   const [imgLoaded, setImgLoaded] = useState(false);
+  const titleId = `item-title-${item.id}`;
 
   return (
     <Card
-      onClick={onClick}
       sx={{
-        cursor: "pointer",
+        position: "relative",
         height: "100%",
         borderRadius: "8px",
         border: isUnpublished ? "2px solid #f59e0b" : "none",
@@ -156,6 +235,30 @@ function ItemCard({
         "&:active": { transform: "translateY(-2px)" },
       }}
     >
+      {/* Full-card click/keyboard target. Sits above the visual content (transparent,
+          zIndex 1) so the whole card is one focusable, activatable control; the info
+          button below opts back onto zIndex 2 so it stays independently reachable. */}
+      <Box
+        component="button"
+        type="button"
+        onClick={onClick}
+        aria-labelledby={titleId}
+        sx={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 1,
+          margin: 0,
+          padding: 0,
+          border: "none",
+          background: "none",
+          font: "inherit",
+          cursor: "pointer",
+          appearance: "none",
+        }}
+      />
+
       {/* Thumbnail */}
       <Box
         sx={{
@@ -180,7 +283,7 @@ function ItemCard({
             />
             <Image
               src={item.thumbnailUrl}
-              alt={item.name}
+              alt=""
               fill
               style={{ objectFit: "cover", opacity: imgLoaded ? 1 : 0, transition: "opacity 0.3s ease" }}
               sizes="(max-width: 600px) 100vw, (max-width: 960px) 50vw, 33vw"
@@ -209,6 +312,7 @@ function ItemCard({
           /* Last level: description as bullet list (e.g. colours) */
           <Stack spacing={1.5}>
             <Typography
+              id={titleId}
               variant="h6"
               sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, lineHeight: 1.4 }}
             >
@@ -235,6 +339,7 @@ function ItemCard({
           /* Other levels: description as info tooltip */
           <Stack direction="row" spacing={1} alignItems="flex-start">
             <Typography
+              id={titleId}
               variant="h6"
               sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, flex: 1, lineHeight: 1.4 }}
             >
@@ -245,7 +350,15 @@ function ItemCard({
                 <IconButton
                   size="small"
                   onClick={(e) => e.stopPropagation()}
-                  sx={{ color: colors.primary, width: 24, height: 24, "&:hover": { bgcolor: "rgba(61,128,120,0.1)" } }}
+                  aria-label={`More information about ${item.name}`}
+                  sx={{
+                    position: "relative",
+                    zIndex: 2,
+                    color: colors.primary,
+                    width: 44,
+                    height: 44,
+                    "&:hover": { bgcolor: "rgba(61,128,120,0.1)" },
+                  }}
                 >
                   <InfoIcon sx={{ fontSize: 18 }} />
                 </IconButton>
@@ -292,6 +405,8 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
   const visibleStepsRef = useRef(new Set<number>());
   const lastTrackedStep = useRef(-1);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const isFirstRenderRef = useRef(true);
 
   // ── Derived ─────────────────────────────────────────────────────────
 
@@ -330,6 +445,17 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     if (!state || !atSteps || !parentEntry) return [];
     return state.steps[parentEntry.itemId] ?? [];
   }, [state, atSteps, parentEntry]);
+
+  // Name of whatever the user is currently looking at, for the document title
+  // and to tell the "you're now viewing X" live region what changed.
+  const currentPageName = useMemo((): string => {
+    if (!state) return "";
+    if (selectionStack.length === 0) return state.homepageTitle || activeLevels[0]?.name || "Guide";
+    const parentItem = parentEntry
+      ? (state.items[parentLevel?.id ?? ""] ?? []).find((i) => i.id === parentEntry.itemId)
+      : undefined;
+    return parentItem?.name ?? currentLevel?.sectionTitle ?? "";
+  }, [state, selectionStack, activeLevels, parentEntry, parentLevel, currentLevel]);
 
   const itemPublishedMap = useMemo((): Record<string, boolean> => {
     if (!state || !currentLevel) return {};
@@ -553,6 +679,26 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     }
   }, [activeStepIndex, atSteps, currentSteps]);
 
+  // ── Focus & title management for in-app navigation ────────────────────
+  // SPA route changes (handleSelect/handleBack/popstate) never trigger a real
+  // page load, so screen reader users get no signal anything changed unless
+  // we move focus and update the title ourselves. Keyed on `selectionStack`
+  // specifically (not currentPageName/state) so this only fires when a real
+  // navigation changes it — not when the initial data fetch resolves while
+  // selectionStack is still its original `[]` reference. Also skipped on the
+  // very first render so we don't steal focus from the freshly-loaded page.
+
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+    if (!currentPageName) return;
+    document.title = `${currentPageName} · ${state?.homepageTitle || "Printer Workflows"}`;
+    mainRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionStack]);
+
   // ── Navigation ────────────────────────────────────────────────────────
 
   const saveProgress = useCallback(
@@ -630,11 +776,15 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   if (loading) {
     return (
-      <Box sx={{ position: "fixed", inset: 0, bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Box sx={{ position: "relative", display: "inline-flex" }}>
+      <Box
+        role="status"
+        sx={{ position: "fixed", inset: 0, bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <Box sx={{ position: "relative", display: "inline-flex" }} aria-hidden="true">
           <CircularProgress variant="determinate" value={100} size={48} thickness={4} sx={{ color: "rgba(61,128,120,0.15)" }} />
           <CircularProgress size={48} thickness={4} sx={{ color: colors.primary, position: "absolute", left: 0, "& .MuiCircularProgress-circle": { strokeLinecap: "round" } }} />
         </Box>
+        <Box component="span" sx={srOnlySx}>Loading guide…</Box>
       </Box>
     );
   }
@@ -698,8 +848,16 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           flexDirection: "column",
         }}
       >
+        <SkipLink />
         {previewBanner}
-        <Container maxWidth="md">
+        <Container
+          maxWidth="md"
+          component="main"
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
+          sx={mainFocusSx}
+        >
           {/* Header */}
           <Stack spacing={2} sx={{ mb: { xs: 5, sm: 6, md: 8 }, textAlign: "center" }}>
             <Typography
@@ -775,27 +933,37 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           pb: 0,
         }}
       >
+        <SkipLink />
         {previewBanner}
-        <Container maxWidth="md">
+        <Container
+          maxWidth="md"
+          component="main"
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
+          sx={mainFocusSx}
+        >
           {/* Top navigation */}
-          <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-            <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
-              <ArrowBackIcon />
-            </NavIconButton>
-            <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-              <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
-                {level1Item?.name ?? ""}
-              </Typography>
-              {level2Item && (
-                <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                  {level2Item.name}
+          <Box component="nav" aria-label="Guide navigation">
+            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)} ariaLabel="Back">
+                <ArrowBackIcon />
+              </NavIconButton>
+              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                  {level1Item?.name ?? ""}
                 </Typography>
-              )}
+                {level2Item && (
+                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {level2Item.name}
+                  </Typography>
+                )}
+              </Stack>
+              <NavIconButton onClick={() => handleBack(0)} ariaLabel="Home">
+                <HomeIcon />
+              </NavIconButton>
             </Stack>
-            <NavIconButton onClick={() => handleBack(0)}>
-              <HomeIcon />
-            </NavIconButton>
-          </Stack>
+          </Box>
 
           {/* Section heading */}
           {(currentLevel.sectionTitle || currentLevel.sectionSubtitle) && (
@@ -855,26 +1023,36 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     if (currentSteps.length === 0) {
       return (
         <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column", bgcolor: colors.lightBg, py: { xs: 4, sm: 5, md: 7 }, pt: previewPt }}>
+          <SkipLink />
           {previewBanner}
-          <Container maxWidth="md">
-            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
-                <ArrowBackIcon />
-              </NavIconButton>
-              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
-                  {level1Item?.name ?? ""}
-                </Typography>
-                {level2Item && (
-                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {level2Item.name}
+          <Container
+            maxWidth="md"
+            component="main"
+            id="main-content"
+            ref={mainRef}
+            tabIndex={-1}
+            sx={mainFocusSx}
+          >
+            <Box component="nav" aria-label="Guide navigation">
+              <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)} ariaLabel="Back">
+                  <ArrowBackIcon />
+                </NavIconButton>
+                <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                    {level1Item?.name ?? ""}
                   </Typography>
-                )}
+                  {level2Item && (
+                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                      {level2Item.name}
+                    </Typography>
+                  )}
+                </Stack>
+                <NavIconButton onClick={() => handleBack(0)} ariaLabel="Home">
+                  <HomeIcon />
+                </NavIconButton>
               </Stack>
-              <NavIconButton onClick={() => handleBack(0)}>
-                <HomeIcon />
-              </NavIconButton>
-            </Stack>
+            </Box>
             <Stack alignItems="center" sx={{ mt: { xs: 6, sm: 8 }, textAlign: "center" }}>
               <Alert severity="info">Content unavailable, check with staff</Alert>
             </Stack>
@@ -888,31 +1066,41 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg }}>
+        <SkipLink />
         {previewBanner}
         {/* Accent line */}
         <Box sx={{ height: 3, bgcolor: colors.primary, mt: isPreviewMode ? "36px" : 0 }} />
 
         <Box sx={{ py: { xs: 4, sm: 5, md: 7 } }}>
-          <Container maxWidth="md">
+          <Container
+            maxWidth="md"
+            component="main"
+            id="main-content"
+            ref={mainRef}
+            tabIndex={-1}
+            sx={mainFocusSx}
+          >
             {/* Top navigation */}
-            <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
-              <NavIconButton onClick={() => handleBack(selectionStack.length - 1)}>
-                <ArrowBackIcon />
-              </NavIconButton>
-              <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
-                <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
-                  {level1Item?.name ?? ""}
-                </Typography>
-                {level2Item && (
-                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {level2Item.name}
+            <Box component="nav" aria-label="Guide navigation">
+              <Stack direction="row" spacing={1.5} sx={{ mb: { xs: 4, sm: 5 }, alignItems: "center" }}>
+                <NavIconButton onClick={() => handleBack(selectionStack.length - 1)} ariaLabel="Back">
+                  <ArrowBackIcon />
+                </NavIconButton>
+                <Stack spacing={0.25} sx={{ flex: 1, textAlign: "center" }}>
+                  <Typography variant="body2" sx={{ fontSize: { xs: "0.85rem", sm: "0.95rem" }, fontWeight: 500, color: colors.lightText }}>
+                    {level1Item?.name ?? ""}
                   </Typography>
-                )}
+                  {level2Item && (
+                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                      {level2Item.name}
+                    </Typography>
+                  )}
+                </Stack>
+                <NavIconButton onClick={() => handleBack(0)} ariaLabel="Home">
+                  <HomeIcon />
+                </NavIconButton>
               </Stack>
-              <NavIconButton onClick={() => handleBack(0)}>
-                <HomeIcon />
-              </NavIconButton>
-            </Stack>
+            </Box>
 
             {/* Sticky: item name + step counter */}
             <Box
@@ -996,6 +1184,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                             <Box
                               component="iframe"
                               src={embedUrl}
+                              title={step.title || "Step video"}
                               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                               allowFullScreen
                               sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
@@ -1038,13 +1227,23 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               )}
             </Box>
             <Stack direction="row" alignItems="center" spacing={1} sx={{ bgcolor: "rgba(0,0,0,0.6)", borderRadius: 2, px: 1.5, py: 0.5 }}>
-              <IconButton size="small" onClick={() => setImgZoom((z) => Math.max(1, z - 0.5))} disabled={imgZoom <= 1} sx={{ color: "white" }}>
+              <IconButton
+                onClick={() => setImgZoom((z) => Math.max(1, z - 0.5))}
+                disabled={imgZoom <= 1}
+                aria-label="Zoom out"
+                sx={{ color: "white", width: 44, height: 44 }}
+              >
                 <RemoveIcon fontSize="small" />
               </IconButton>
               <Typography variant="caption" sx={{ color: "white", minWidth: 36, textAlign: "center" }}>
                 {Math.round(imgZoom * 100)}%
               </Typography>
-              <IconButton size="small" onClick={() => setImgZoom((z) => Math.min(1.5, z + 0.5))} disabled={imgZoom >= 1.5} sx={{ color: "white" }}>
+              <IconButton
+                onClick={() => setImgZoom((z) => Math.min(1.5, z + 0.5))}
+                disabled={imgZoom >= 1.5}
+                aria-label="Zoom in"
+                sx={{ color: "white", width: 44, height: 44 }}
+              >
                 <AddIcon fontSize="small" />
               </IconButton>
             </Stack>
@@ -1056,6 +1255,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           <Fab
             size="small"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            aria-label="Back to top"
             sx={{
               position: "fixed", bottom: 72, right: 24, zIndex: 20,
               bgcolor: colors.primary, color: "#ffffff",

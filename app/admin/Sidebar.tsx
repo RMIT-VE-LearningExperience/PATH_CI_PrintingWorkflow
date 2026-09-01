@@ -20,6 +20,7 @@ import {
 import {
   ArrowBackIosNew as CollapseIcon,
   ArrowForwardIos as ExpandIcon,
+  AutoAwesome as AutoAwesomeIcon,
   Check as CheckIcon,
   DeleteOutline as DeleteOutlineIcon,
   Home as HomeIcon,
@@ -273,6 +274,18 @@ export default function Sidebar({
         )}
 
         <Divider sx={{ borderColor: "rgba(255,255,255,0.15)", width: "80%", my: 1.5 }} />
+
+        <Tooltip title="Image Alt Text (VAL)" placement="right">
+          <IconButton
+            onClick={() => { window.location.assign("/admin/alt-text"); }}
+            sx={{
+              width: 50, height: 50, borderRadius: 1, color: MUTED,
+              "&:hover": { bgcolor: HOVER_BG },
+            }}
+          >
+            <AutoAwesomeIcon sx={{ fontSize: 24 }} />
+          </IconButton>
+        </Tooltip>
 
         <Tooltip title="Deleted Items" placement="right">
           <IconButton
@@ -566,6 +579,16 @@ export default function Sidebar({
       )}
 
       <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,0.15)" }} />
+
+      <Button
+        fullWidth
+        startIcon={<AutoAwesomeIcon />}
+        variant="outlined"
+        onClick={() => { window.location.assign("/admin/alt-text"); }}
+        sx={{ ...outlinedBtnSx, mb: 1 }}
+      >
+        Image Alt Text (VAL)
+      </Button>
 
       <Button
         fullWidth

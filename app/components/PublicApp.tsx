@@ -283,7 +283,7 @@ function ItemCard({
             />
             <Image
               src={item.thumbnailUrl}
-              alt=""
+              alt={item.thumbnailAlt ?? ""}
               fill
               style={{ objectFit: "cover", opacity: imgLoaded ? 1 : 0, transition: "opacity 0.3s ease" }}
               sizes="(max-width: 600px) 100vw, (max-width: 960px) 50vw, 33vw"
@@ -1194,7 +1194,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                       ) : step.imageUrl ? (
                         <StepImage
                           src={step.imageUrl}
-                          alt={step.title}
+                          alt={step.imageAlt ?? step.title}
                           onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
                         />
                       ) : null}

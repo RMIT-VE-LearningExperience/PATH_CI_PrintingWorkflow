@@ -404,6 +404,14 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   const [selectionStack, setSelectionStack] = useState<NavEntry[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
+  // Debounced copy of activeStepIndex for the screen-reader status region,
+  // so scroll jitter doesn't trigger a flood of announcements
+  const [announcedStepIndex, setAnnouncedStepIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setAnnouncedStepIndex(activeStepIndex), 800);
+    return () => clearTimeout(timer);
+  }, [activeStepIndex]);
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; alt: string } | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   // Natural pixel size of the enlarged image, so 100% zoom can size it to
@@ -1154,6 +1162,12 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               >
                 STEP {currentSteps.length === 0 ? 0 : activeStepIndex + 1} OF {currentSteps.length}
               </Typography>
+              {/* Debounced screen-reader announcement of the visual counter above */}
+              <Box component="p" role="status" sx={srOnlySx}>
+                {currentSteps.length > 0
+                  ? `Step ${announcedStepIndex + 1} of ${currentSteps.length}`
+                  : ""}
+              </Box>
             </Box>
 
             {/* Step cards */}

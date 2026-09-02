@@ -436,7 +436,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const visibleStepsRef = useRef(new Set<number>());
+  const stepRatiosRef = useRef(new Map<number, number>());
   const lastTrackedStep = useRef(-1);
   const mainRef = useRef<HTMLDivElement>(null);
   const isFirstRenderRef = useRef(true);
@@ -675,7 +675,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   useEffect(() => {
     if (!atSteps || currentSteps.length === 0) return;
-    visibleStepsRef.current.clear();
+    stepRatiosRef.current.clear();
     lastTrackedStep.current = -1;
 
     const observer = new IntersectionObserver(
@@ -683,15 +683,23 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
         entries.forEach((entry) => {
           const idx = Number(entry.target.getAttribute("data-step-index"));
           if (entry.isIntersecting) {
-            visibleStepsRef.current.add(idx);
+            stepRatiosRef.current.set(idx, entry.intersectionRatio);
           } else {
-            visibleStepsRef.current.delete(idx);
+            stepRatiosRef.current.delete(idx);
           }
         });
-        const visible = [...visibleStepsRef.current].sort((a, b) => a - b);
-        if (visible.length > 0) setActiveStepIndex(visible[0]);
+
+        // Pick whichever step is most visible right now, not just the earliest
+        // one still partially on screen — a "lowest index wins" rule lags behind
+        // the real scroll position, especially for tall steps.
+        let bestIdx = -1;
+        let bestRatio = 0;
+        stepRatiosRef.current.forEach((ratio, idx) => {
+          if (ratio > bestRatio) { bestRatio = ratio; bestIdx = idx; }
+        });
+        if (bestIdx >= 0) setActiveStepIndex(bestIdx);
       },
-      { threshold: 0.2 },
+      { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] },
     );
 
     stepRefs.current.forEach((el) => el && observer.observe(el));

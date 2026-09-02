@@ -88,6 +88,9 @@ function initAdminApp() {
   return initializeApp({
     credential: applicationDefault(),
     storageBucket,
+    // ADC user credentials cannot sign custom tokens locally; naming the
+    // service account lets the SDK sign via the IAM signBlob API instead
+    ...(clientEmail ? { serviceAccountId: clientEmail } : {}),
   });
 }
 

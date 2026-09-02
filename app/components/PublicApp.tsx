@@ -1245,7 +1245,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                           src={step.imageUrl}
                           alt={step.imageAlt ?? step.title}
                           onClick={() => {
-                            setEnlargedImage({ url: step.imageUrl, alt: step.imageAlt || step.title });
+                            setEnlargedImage({ url: step.imageUrl, alt: step.imageAlt ?? step.title });
                             setEnlargedNatural(null);
                             setImgZoom(1);
                           }}

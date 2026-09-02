@@ -315,6 +315,7 @@ function ItemCard({
             <Typography
               id={titleId}
               variant="h6"
+              component="h2"
               sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, lineHeight: 1.4 }}
             >
               {item.name}
@@ -342,6 +343,7 @@ function ItemCard({
             <Typography
               id={titleId}
               variant="h6"
+              component="h2"
               sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.text, flex: 1, lineHeight: 1.4 }}
             >
               {item.name}
@@ -796,7 +798,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     return (
       <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Stack spacing={3} alignItems="center" sx={{ textAlign: "center", px: 3 }}>
-          <Typography variant="h4" fontWeight={700} color={colors.text}>Item not found</Typography>
+          <Typography variant="h4" component="h1" fontWeight={700} color={colors.text}>Item not found</Typography>
           <Typography variant="body1" color={colors.lightText}>
             This link is no longer available or has been removed.
           </Typography>
@@ -972,6 +974,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               {currentLevel.sectionTitle && (
                 <Typography
                   variant="h2"
+                  component="h1"
                   sx={{ fontSize: { xs: "1.75rem", sm: "2.25rem", md: "2.5rem" }, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text }}
                 >
                   {currentLevel.sectionTitle}
@@ -1117,6 +1120,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
             >
               <Typography
                 variant="h2"
+                component="h1"
                 sx={{ fontSize: { xs: "1.75rem", sm: "2.25rem", md: "2.5rem" }, fontWeight: 800, letterSpacing: "-0.02em", color: colors.text, mb: 1 }}
               >
                 {lastItem?.name ?? ""}
@@ -1154,7 +1158,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                           {index + 1}
                         </Box>
                         {step.title && (
-                          <Typography variant="h6" sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.primary }}>
+                          <Typography variant="h6" component="h2" sx={{ fontSize: { xs: "1rem", sm: "1.1rem" }, fontWeight: 600, color: colors.primary }}>
                             {step.title}
                           </Typography>
                         )}

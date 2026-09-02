@@ -406,6 +406,18 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; alt: string } | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
+  // Natural pixel size of the enlarged image, so 100% zoom can size it to
+  // fit the viewport exactly (no scrollbars); zooming past 100% pans instead
+  const [enlargedNatural, setEnlargedNatural] = useState<{ w: number; h: number } | null>(null);
+  const [viewerBounds, setViewerBounds] = useState<{ w: number; h: number } | null>(null);
+
+  useEffect(() => {
+    if (!enlargedImage) return;
+    const update = () => setViewerBounds({ w: window.innerWidth * 0.9, h: window.innerHeight * 0.8 });
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [enlargedImage]);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -1205,6 +1217,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                           alt={step.imageAlt ?? step.title}
                           onClick={() => {
                             setEnlargedImage({ url: step.imageUrl, alt: step.imageAlt || step.title });
+                            setEnlargedNatural(null);
                             setImgZoom(1);
                           }}
                         />
@@ -1243,13 +1256,43 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
             >
               <CloseIcon />
             </IconButton>
-            <Box sx={{ overflow: "auto", maxWidth: "90vw", maxHeight: "80vh", borderRadius: "8px", bgcolor: "#111", lineHeight: 0 }}>
+            <Box
+              sx={{
+                // At 100% the image is sized to fit exactly, so hide overflow
+                // to avoid rounding-induced scrollbars; zoomed-in pans instead
+                overflow: imgZoom > 1 ? "auto" : "hidden",
+                maxWidth: "90vw", maxHeight: "80vh", borderRadius: "8px", bgcolor: "#111", lineHeight: 0,
+              }}
+            >
               {enlargedImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={enlargedImage.url}
                   alt={enlargedImage.alt}
-                  style={{ display: "block", width: `${imgZoom * 100}%`, height: "auto", cursor: imgZoom > 1 ? "zoom-out" : "zoom-in" }}
+                  style={{
+                    display: "block",
+                    height: "auto",
+                    cursor: imgZoom > 1 ? "zoom-out" : "zoom-in",
+                    ...(enlargedNatural && viewerBounds
+                      ? {
+                          width:
+                            Math.floor(
+                              enlargedNatural.w *
+                                Math.min(
+                                  viewerBounds.w / enlargedNatural.w,
+                                  viewerBounds.h / enlargedNatural.h,
+                                  1,
+                                ),
+                            ) * imgZoom,
+                        }
+                      : { width: "auto", maxWidth: "90vw", maxHeight: "80vh" }),
+                  }}
+                  onLoad={(e) =>
+                    setEnlargedNatural({
+                      w: e.currentTarget.naturalWidth,
+                      h: e.currentTarget.naturalHeight,
+                    })
+                  }
                   onClick={() => setImgZoom((z) => (z > 1 ? 1 : 1.5))}
                 />
               )}

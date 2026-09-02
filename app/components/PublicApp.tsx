@@ -21,6 +21,7 @@ import {
 import {
   Add as AddIcon,
   ArrowBack as ArrowBackIcon,
+  Close as CloseIcon,
   Home as HomeIcon,
   Image as ImageIcon,
   Info as InfoIcon,
@@ -398,7 +399,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   const [selectionStack, setSelectionStack] = useState<NavEntry[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
-  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  const [enlargedImage, setEnlargedImage] = useState<{ url: string; alt: string } | null>(null);
   const [imgZoom, setImgZoom] = useState(1);
   const [showBackToTop, setShowBackToTop] = useState(false);
 
@@ -1195,7 +1196,10 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                         <StepImage
                           src={step.imageUrl}
                           alt={step.imageAlt ?? step.title}
-                          onClick={() => { setEnlargedImage(step.imageUrl); setImgZoom(1); }}
+                          onClick={() => {
+                            setEnlargedImage({ url: step.imageUrl, alt: step.imageAlt || step.title });
+                            setImgZoom(1);
+                          }}
                         />
                       ) : null}
                     </CardContent>
@@ -1214,13 +1218,30 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
           onClose={() => { setEnlargedImage(null); setImgZoom(1); }}
           sx={{ display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "rgba(0,0,0,0.85)" }}
         >
-          <Box sx={{ outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+          <Box
+            role="dialog"
+            aria-modal="true"
+            aria-label={enlargedImage ? `Enlarged image: ${enlargedImage.alt}` : "Enlarged image"}
+            sx={{ position: "relative", outline: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}
+          >
+            <IconButton
+              onClick={() => { setEnlargedImage(null); setImgZoom(1); }}
+              aria-label="Close image viewer"
+              sx={{
+                position: "absolute", top: 8, right: 8, zIndex: 1,
+                color: "white", width: 44, height: 44,
+                bgcolor: "rgba(0,0,0,0.6)",
+                "&:hover": { bgcolor: "rgba(0,0,0,0.8)" },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
             <Box sx={{ overflow: "auto", maxWidth: "90vw", maxHeight: "80vh", borderRadius: "8px", bgcolor: "#111", lineHeight: 0 }}>
               {enlargedImage && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={enlargedImage}
-                  alt="Step image"
+                  src={enlargedImage.url}
+                  alt={enlargedImage.alt}
                   style={{ display: "block", width: `${imgZoom * 100}%`, height: "auto", cursor: imgZoom > 1 ? "zoom-out" : "zoom-in" }}
                   onClick={() => setImgZoom((z) => (z > 1 ? 1 : 1.5))}
                 />

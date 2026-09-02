@@ -727,7 +727,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
       return;
     }
     if (!currentPageName) return;
-    document.title = `${currentPageName} · ${state?.homepageTitle || "Printer Workflows"}`;
+    document.title = currentPageName;
     mainRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionStack]);

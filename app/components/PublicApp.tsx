@@ -39,6 +39,9 @@ const PROGRESS_KEY = "path_guide_progress_v1";
 
 const colors = {
   primary: "#3D8078",
+  // Darker teal for small text on lightBg: primary only reaches 4.39:1
+  // there, below the 4.5:1 WCAG AA minimum (this is 5.08:1)
+  primaryText: "#38756E",
   darkBg: "#45443F",
   lightBg: "#FDF9F1",
   lightBorder: "#E5E1D7",
@@ -957,7 +960,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                   {level1Item?.name ?? ""}
                 </Typography>
                 {level2Item && (
-                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primaryText, letterSpacing: "0.05em", textTransform: "uppercase" }}>
                     {level2Item.name}
                   </Typography>
                 )}
@@ -1047,7 +1050,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                     {level1Item?.name ?? ""}
                   </Typography>
                   {level2Item && (
-                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primaryText, letterSpacing: "0.05em", textTransform: "uppercase" }}>
                       {level2Item.name}
                     </Typography>
                   )}
@@ -1095,7 +1098,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
                     {level1Item?.name ?? ""}
                   </Typography>
                   {level2Item && (
-                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primary, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <Typography variant="caption" sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" }, fontWeight: 600, color: colors.primaryText, letterSpacing: "0.05em", textTransform: "uppercase" }}>
                       {level2Item.name}
                     </Typography>
                   )}

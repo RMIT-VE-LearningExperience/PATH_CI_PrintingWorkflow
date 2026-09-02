@@ -418,6 +418,13 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
   // fit the viewport exactly (no scrollbars); zooming past 100% pans instead
   const [enlargedNatural, setEnlargedNatural] = useState<{ w: number; h: number } | null>(null);
   const [viewerBounds, setViewerBounds] = useState<{ w: number; h: number } | null>(null);
+  const enlargedScrollRef = useRef<HTMLDivElement>(null);
+
+  // Once zoomed past 100% the image pans; focus the scroll container so
+  // arrow keys pan immediately without an extra Tab stop hunt
+  useEffect(() => {
+    if (imgZoom > 1) enlargedScrollRef.current?.focus();
+  }, [imgZoom]);
 
   useEffect(() => {
     if (!enlargedImage) return;
@@ -1279,11 +1286,18 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
               <CloseIcon />
             </IconButton>
             <Box
+              ref={enlargedScrollRef}
+              // Scrollable regions must be keyboard operable: focusable with
+              // a name while zoomed, so arrow keys pan the image
+              tabIndex={imgZoom > 1 ? 0 : undefined}
+              role={imgZoom > 1 ? "group" : undefined}
+              aria-label={imgZoom > 1 ? "Zoomed image. Use the arrow keys to pan." : undefined}
               sx={{
                 // At 100% the image is sized to fit exactly, so hide overflow
                 // to avoid rounding-induced scrollbars; zoomed-in pans instead
                 overflow: imgZoom > 1 ? "auto" : "hidden",
                 maxWidth: "90vw", maxHeight: "80vh", borderRadius: "8px", bgcolor: "#111", lineHeight: 0,
+                "&:focus-visible": { outline: "3px solid #fff", outlineOffset: 2 },
               }}
             >
               {enlargedImage && (

@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { Box, Stack, Typography } from "@mui/material";
 
 export default function NotFound() {
+  useEffect(() => {
+    document.title = "Page not found · Printer Workflows";
+  }, []);
+
   return (
     <Box
+      component="main"
       sx={{
         minHeight: "100vh",
         bgcolor: "#FDF9F1",
@@ -17,6 +23,7 @@ export default function NotFound() {
       <Stack spacing={3} alignItems="center" sx={{ textAlign: "center", px: 3 }}>
         <Typography
           variant="h4"
+          component="h1"
           sx={{ fontWeight: 700, color: "#45443F" }}
         >
           Page not found

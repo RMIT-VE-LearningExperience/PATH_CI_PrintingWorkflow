@@ -717,6 +717,14 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionStack]);
 
+  // The catch-all route renders this view for unknown slugs, so it is the
+  // app's real 404 page and needs its own title
+  useEffect(() => {
+    if (notFound) {
+      document.title = `Page not found · ${state?.homepageTitle || "Printer Workflows"}`;
+    }
+  }, [notFound, state?.homepageTitle]);
+
   // ── Navigation ────────────────────────────────────────────────────────
 
   const saveProgress = useCallback(
@@ -811,7 +819,7 @@ export default function PublicApp({ initialSlugs }: { initialSlugs: string[] }) 
 
   if (notFound) {
     return (
-      <Box sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box component="main" sx={{ minHeight: "100vh", bgcolor: colors.lightBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
         <Stack spacing={3} alignItems="center" sx={{ textAlign: "center", px: 3 }}>
           <Typography variant="h4" component="h1" fontWeight={700} color={colors.text}>Item not found</Typography>
           <Typography variant="body1" color={colors.lightText}>

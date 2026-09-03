@@ -19,13 +19,11 @@ import {
   updateHomepageSettings,
   updateLevelSettings,
   updateAppSettings,
-  applyAltText,
   getTutorialState,
   validatePreviewToken,
   isActiveAdmin,
   type TutorialState,
   type AppSettings,
-  type AltTextEntry,
 } from "../../../lib/tutorial-store";
 
 type ActionPayload =
@@ -45,8 +43,7 @@ type ActionPayload =
   | { action: "removeInvalidChildren"; parentLevelId: string; parentItemId: string }
   | { action: "updateHomepageSettings"; title: string; description: string }
   | { action: "updateLevelSettings"; levelId: string; sectionTitle: string; sectionSubtitle: string }
-  | { action: "updateAppSettings"; settings: Partial<AppSettings> }
-  | { action: "applyAltText"; entries: AltTextEntry[] };
+  | { action: "updateAppSettings"; settings: Partial<AppSettings> };
 
 async function executeAction(payload: ActionPayload, modifiedBy: string): Promise<TutorialState> {
   switch (payload.action) {
@@ -123,9 +120,6 @@ async function executeAction(payload: ActionPayload, modifiedBy: string): Promis
     case "updateAppSettings":
       await updateAppSettings(payload.settings);
       return getTutorialState();
-
-    case "applyAltText":
-      return applyAltText(payload.entries, modifiedBy);
 
     default:
       throw new Error(`Unknown action: ${(payload as { action: string }).action}`);

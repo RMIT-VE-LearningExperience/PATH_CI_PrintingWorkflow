@@ -672,43 +672,6 @@ export async function setStepOrder(
   return getTutorialState();
 }
 
-// ============= ALT TEXT =============
-
-export type AltTextEntry =
-  | { kind: "item-thumbnail"; levelId: string; itemId: string; alt: string }
-  | { kind: "step-image"; parentItemId: string; stepId: string; alt: string };
-
-const BATCH_LIMIT = 400; // Firestore caps batches at 500 writes
-
-export async function applyAltText(
-  entries: AltTextEntry[],
-  modifiedBy?: string,
-): Promise<TutorialState> {
-  for (let i = 0; i < entries.length; i += BATCH_LIMIT) {
-    const batch = db.batch();
-    for (const entry of entries.slice(i, i + BATCH_LIMIT)) {
-      const fields = {
-        lastModified: FieldValue.serverTimestamp(),
-        modifiedBy: modifiedBy ?? "system",
-      };
-      if (entry.kind === "item-thumbnail") {
-        batch.update(itemsCol(entry.levelId).doc(entry.itemId), {
-          ...fields,
-          thumbnailAlt: entry.alt,
-        });
-      } else {
-        batch.update(stepsCol(entry.parentItemId).doc(entry.stepId), {
-          ...fields,
-          imageAlt: entry.alt,
-        });
-      }
-    }
-    await batch.commit();
-  }
-
-  return getTutorialState();
-}
-
 // ============= SOFT-DELETE BIN =============
 
 export async function restoreDeletedItem(deletedItemId: string): Promise<TutorialState> {

@@ -35,3 +35,11 @@ The app serves a single page that renders **Printing App**.
 1. Commit all root files (`package.json`, `apphosting.yaml`, `app/` directory, TypeScript and ESLint config).
 2. In Firebase App Hosting backend setup, set root directory to `/` (repo root).
 3. Push to the backend's live branch to trigger rollout.
+
+## Image retention safety
+
+Automatic image deletion is disabled. The scheduled cleanup handler only logs;
+legacy orphan queues must not be used to delete images. Audits are read-only and
+use app-specific function names/codebases to prevent cross-app deployment collisions.
+Run `npm test --prefix functions` before deploying functions.
+The audit uses the app's named database and lists only its storage folder.

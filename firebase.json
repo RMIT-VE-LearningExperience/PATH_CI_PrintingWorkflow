@@ -2,7 +2,10 @@
   "apphosting": {},
   "functions": {
     "source": "functions",
-    "predeploy": ["npm --prefix functions run build"]
+    "predeploy": [
+      "npm --prefix functions run build"
+    ],
+    "codebase": "path-ci-printingworkflows"
   },
   "firestore": {
     "rules": "firestore.rules",
